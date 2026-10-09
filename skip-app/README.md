@@ -14,14 +14,24 @@ Servie en HTTPS, l'appli s'installe sur l'écran d'accueil (Android : « Install
 | Notation | Note 1–10 (communauté + pente/largeur), Facile < 4 · Moyenne 4–7,5 · Difficile ≥ 7,5, vote en 1 tap, « moyenne basée sur N votes » |
 | Coups de cœur | Cœur, compteur, « Top coups de cœur » |
 | Sécurité/progression | Niveau personnel : « à ton niveau / pour progresser / trop dur » |
-| Itinéraire | Durée, difficulté, vitesse lent/moyen/rapide, éviter noires et foule, attente estimée, carte schématique |
+| Itinéraire | Durée, couleurs de pistes au choix, vitesse lent/moyen/rapide ; schéma avec étapes numérotées et pas-à-pas détaillé |
 | Hors ligne | Itinéraire téléchargeable, alerte de fermeture au retour du réseau |
 | Problématique écran | Détection GPS des descentes, mode poche, retour vocal/vibration, vote le soir, compteur de temps d'écran, guidage audio |
-| Rencontres | Profil avec statut et liens vers ses réseaux (Instagram, Snapchat, Facebook, Strava), annuaire des skieurs de la station (nécessite un serveur), chat général du jour |
+| Rencontres | Profil (pseudo, ski/snowboard, niveau, statut, envies), liens réels vers Instagram, Snapchat, Facebook, Strava, partage de profil / itinéraire / coups de cœur par message (WhatsApp, SMS…), ajout d'un ami en collant son message, chat général du jour |
 | Concurrents | Onglet SKIP : comparatif Skiinfo, Skitude/Strava, Skiif |
 
-## Limites (démo)
-- Stations, notes, votes, attentes et positions sont **fictifs** (`data.js`). Il manque un backend (votes partagés, chat, plans officiels, remontées en temps réel).
-- La carte est un schéma, pas un fond GPS. Pour de vraies cartes hors ligne, prévoir MapLibre + tuiles.
+## Données
+Rien n'est inventé : aucune note, aucun vote, aucun coup de cœur au départ.
+`data.js` ne contient pour l'Alpe d'Huez que :
+- l'itinéraire exemple de la présentation SKIP (4 pistes, 2 remontées, durées et couleurs) ;
+- 5 pistes confirmées par des sources publiques (Sarenne, Tunnel, Signal, Petite Sûre, Marcel), sans tracé ni durée.
+
+Pour compléter la station, ajouter dans `data.js` des `nodes` (point d'arrivée/départ), `lifts` (`from`, `to`, `min`) et `pistes` (`from`, `to`, `min`, `km`, `color`). Une piste sans `from`/`to`/`min` apparaît dans la liste mais pas dans les itinéraires. Les données officielles (plan des pistes, durées de remontée) restent à importer.
+
+## Limites
+- Il manque un backend : votes partagés, chat commun, connexion réelle aux réseaux (OAuth) et annuaire des skieurs. Le partage se fait par message texte contenant un code `SKIP:…`.
+- Pas de temps d'attente aux remontées (aucune source de données en temps réel).
+- La détection GPS des descentes n'est pas active tant que les points clés n'ont pas de coordonnées (`lat`, `lng`).
+- La carte est un schéma, pas un fond GPS.
 - Pour publier sur les stores : empaqueter avec Capacitor.
-- `engine.js` (calcul de note, itinéraires, détection) est testable sous Node sans navigateur.
+- `engine.js` (notation, itinéraires, détection) est testable sous Node sans navigateur.

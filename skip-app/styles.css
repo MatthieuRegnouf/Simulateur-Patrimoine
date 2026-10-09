@@ -80,3 +80,7 @@ svg.map{width:100%;height:auto;background:var(--card);border:1px solid var(--lin
 .badge{font-size:12px;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--brand2);color:var(--brand);display:inline-block}
 .net-row{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .net-row a{color:var(--brand)}
+.score.none{background:var(--line);color:var(--mut);font-size:22px}.score.none small{font-size:9px}
+.num{width:30px;height:30px;border-radius:50%;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;font-size:14px}
+textarea{resize:vertical}
+a.chip{text-decoration:none;color:var(--ink)}
