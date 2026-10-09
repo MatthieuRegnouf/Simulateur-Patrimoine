@@ -74,3 +74,9 @@ table.cmp{width:100%;border-collapse:collapse;font-size:12px}
 svg.map{width:100%;height:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
 .warn{background:#fff4d6;color:#7a5200;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px}
 .bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--brand)}
+.bigsearch{font-size:17px;padding:14px 16px;border-radius:16px}
+.me-card{display:flex;gap:12px;align-items:center}
+.avatar{width:48px;height:48px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex:none}
+.badge{font-size:12px;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--brand2);color:var(--brand);display:inline-block}
+.net-row{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.net-row a{color:var(--brand)}

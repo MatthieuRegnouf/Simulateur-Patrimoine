@@ -29,16 +29,6 @@ const DATA = {
         { id: 'jeux',      name: 'Les Jeux',             color: 'green', from: 'jeux', to: 'base', km: 1.5,min: 7,  comm: 2.5, votes: 142, hearts: 77,  slope: 9,  maxSlope: 14, width: 50, snow: 'Damée', crowd: 0.85 },
         { id: 'marmottes', name: 'Les Marmottes',        color: 'green', from: 'jeux', to: 'base', km: 2,  min: 9,  comm: 1.8, votes: 90,  hearts: 102, slope: 7,  maxSlope: 11, width: 55, snow: 'Damée, large', crowd: 0.7 },
         { id: 'ecureuils', name: 'Les Écureuils',        color: 'blue',  from: 'jeux', to: 'base', km: 2,  min: 8,  comm: 3.8, votes: 66,  hearts: 38,  slope: 14, maxSlope: 22, width: 35, snow: 'Damée', crowd: 0.4 }
-      ],
-      chat: [
-        { who: 'Camille', lvl: 6, t: '09:12', text: "Quelqu'un pour une rouge sportive vers 11h depuis le Poutran ?" },
-        { who: 'Hugo',    lvl: 4, t: '09:40', text: "La Combe Rouge est top ce matin, bien damée 👌" },
-        { who: 'Inès',    lvl: 7, t: '10:05', text: "Attente 10 min au téléphérique de l'Alpette, évitez." }
-      ],
-      partners: [
-        { name: 'Camille', lvl: 6, wants: ['Rouge sportive', 'Progresser'] },
-        { name: 'Hugo',    lvl: 4, wants: ['Balade', 'Pause chocolat'] },
-        { name: 'Inès',    lvl: 7, wants: ['Progresser', 'Photos'] }
       ]
     },
     arcs: {
@@ -61,12 +51,6 @@ const DATA = {
         { id: 'a_belv',    name: 'Le Belvédère',   color: 'blue',  from: 'mid', to: 'a18', km: 5,   min: 15, comm: 3.9, votes: 48, hearts: 71, slope: 13, maxSlope: 21, width: 35, snow: 'Panorama, damée', crowd: 0.2 },
         { id: 'a_aig',     name: 'Les Aiguilles',  color: 'red',   from: 'sum', to: 'mid', km: 4,   min: 12, comm: 6.9, votes: 83, hearts: 96, slope: 23, maxSlope: 36, width: 30, snow: 'Variable', crowd: 0.3 },
         { id: 'a_noire',   name: 'Piste Aiguille Rouge', color: 'black', from: 'sum', to: 'mid', km: 3, min: 9, comm: 8.7, votes: 120, hearts: 210, slope: 32, maxSlope: 48, width: 18, snow: 'Raide, parfois verglacée', crowd: 0.1 }
-      ],
-      chat: [
-        { who: 'Léo', lvl: 5, t: '09:30', text: "Belle neige sur le Belvédère ce matin !" }
-      ],
-      partners: [
-        { name: 'Léo', lvl: 5, wants: ['Progresser', 'Photos'] }
       ]
     }
   }

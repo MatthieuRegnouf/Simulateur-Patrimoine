@@ -17,7 +17,7 @@ Servie en HTTPS, l'appli s'installe sur l'écran d'accueil (Android : « Install
 | Itinéraire | Durée, difficulté, vitesse lent/moyen/rapide, éviter noires et foule, attente estimée, carte schématique |
 | Hors ligne | Itinéraire téléchargeable, alerte de fermeture au retour du réseau |
 | Problématique écran | Détection GPS des descentes, mode poche, retour vocal/vibration, vote le soir, compteur de temps d'écran, guidage audio |
-| Rencontres | Profil, partenaires compatibles, discussion de station |
+| Rencontres | Profil avec statut et liens vers ses réseaux (Instagram, Snapchat, Facebook, Strava), annuaire des skieurs de la station (nécessite un serveur), chat général du jour |
 | Concurrents | Onglet SKIP : comparatif Skiinfo, Skitude/Strava, Skiif |
 
 ## Limites (démo)

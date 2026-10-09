@@ -8,12 +8,13 @@ const scoreColor = s => `hsl(${Math.round(130 - (Math.max(1, Math.min(10, s)) - 
 
 const defaults = () => ({
   station: 'alpe', tab: 'pistes', level: 5, audio: true,
-  profile: { pseudo: 'Moi', wants: [], seek: false },
+  profile: { pseudo: 'Moi', wants: [], status: 'slopes', socials: {} },
   votes: {}, hearts: [], log: {}, route: null, chat: {}, screen: {}, closed: [],
-  filt: { min: 1, max: 10, colors: [], q: '', sort: 'score', fit: false },
+  filt: { min: 1, max: 10, colors: [], q: '', sort: 'score', fit: false, open: false },
   rf: { start: null, budget: 120, target: 6, speed: 'medium', avoidBlack: true, avoidCrowded: true }
 });
 let S = (() => { try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return defaults(); } })();
+S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* stockage indisponible */ } };
 
 const station = () => DATA.stations[S.station];
@@ -41,53 +42,46 @@ function speak(text) {
 }
 
 /* ---------- Pistes ---------- */
+const norm = t => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
 function filtered() {
-  const f = S.filt, st = station();
-  let l = st.pistes.map(p => ({ p, i: info(p) })).filter(({ p, i }) =>
+  const f = S.filt, st = station(), q = norm(f.q).trim();
+  let l = st.pistes.map(p => ({ p, i: info(p) })).filter(({ p, i }) => q ? norm(p.name).includes(q) :
     i.score >= f.min - 0.001 && i.score <= f.max + 0.001 &&
-    (!f.colors.length || f.colors.includes(p.color)) &&
-    (!f.q || p.name.toLowerCase().includes(f.q.toLowerCase())) &&
-    (!f.fit || i.score <= S.level + 1.5));
+    (!f.colors.length || f.colors.includes(p.color)) && (!f.fit || i.score <= S.level + 1.5));
   l.sort((a, b) => f.sort === 'hearts' ? b.i.hearts - a.i.hearts : f.sort === 'name' ? a.p.name.localeCompare(b.p.name) : a.i.score - b.i.score);
   return l;
 }
 function pisteRow({ p, i }) {
   return `<button class="piste${i.closed ? ' closed' : ''}" data-action="open" data-id="${p.id}">
     <span class="sq ${p.color}" title="${colorName(p.color)}"></span>
-    <span class="sp"><b>${esc(p.name)}</b> <span class="mut">· ${colorName(p.color)}${i.closed ? ' · FERMÉE' : ''}</span><br>
-      <span class="lab ${i.label.key}">${i.label.icon} ${i.label.text}</span> <span class="fit ${i.fit.key}">${i.fit.text}</span><br>
-      <span class="mut">${i.votes} votes · ❤ ${i.hearts} · ${p.km} km</span></span>
+    <span class="sp"><b>${esc(p.name)}</b><br>
+      <span class="lab ${i.label.key}">${i.label.text}</span>${i.closed ? ' <span class="mut">fermée</span>' : ''}${i.fit.key === 'hard' ? ' <span class="fit hard">⚠ trop dur</span>' : ''}</span>
     ${scoreBubble(i.score)}</button>`;
 }
 function renderPistes() {
   const f = S.filt, st = station();
-  const top = st.pistes.map(p => ({ p, i: info(p) })).sort((a, b) => b.i.hearts - a.i.hearts).slice(0, 5);
-  const preset = (a, b) => f.min === a && f.max === b ? ' on' : '';
+  const preset = (a, b) => !f.open && f.min === a && f.max === b && f.sort === 'score' ? ' on' : '';
   return `<h2>Pistes · ${esc(st.name)}</h2>
-  <div class="card">
-    <input type="search" id="q" placeholder="Rechercher une piste…" value="${esc(f.q)}" aria-label="Rechercher">
-    <div class="chips" style="margin:10px 0">
-      <button class="chip${preset(1, 10)}" data-action="preset" data-a="1" data-b="10">Toutes</button>
-      <button class="chip${preset(1, 4)}" data-action="preset" data-a="1" data-b="4">👶 Débutants 1–4</button>
-      <button class="chip${preset(6, 8)}" data-action="preset" data-a="6" data-b="8">🔥 Sportive 6–8</button>
-    </div>
+  <input type="search" id="q" class="bigsearch" placeholder="🔍 Chercher une piste" value="${esc(f.q)}" aria-label="Chercher une piste" autocomplete="off">
+  <div class="chips" style="margin:10px 0">
+    <button class="chip${preset(1, 10)}" data-action="preset" data-a="1" data-b="10">Toutes</button>
+    <button class="chip${preset(1, 4)}" data-action="preset" data-a="1" data-b="4">Faciles</button>
+    <button class="chip${preset(6, 8)}" data-action="preset" data-a="6" data-b="8">Sportives</button>
+    <button class="chip${f.sort === 'hearts' ? ' on' : ''}" data-action="sort" data-k="${f.sort === 'hearts' ? 'score' : 'hearts'}">❤ Top</button>
+    <button class="chip${f.open ? ' on' : ''}" data-action="filters">Filtres</button>
+  </div>
+  ${f.open ? `<div class="card">
     <div class="mut">Difficulté de <b id="rmin">${f.min}</b> à <b id="rmax">${f.max}</b> /10</div>
     <input type="range" min="1" max="10" step="0.5" value="${f.min}" data-range="min" aria-label="Note minimum">
     <input type="range" min="1" max="10" step="0.5" value="${f.max}" data-range="max" aria-label="Note maximum">
     <div class="chips" style="margin:8px 0">${['green', 'blue', 'red', 'black'].map(c =>
       `<button class="chip${f.colors.includes(c) ? ' on' : ''}" data-action="color" data-c="${c}"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${colorName(c)}</button>`).join('')}</div>
-    <div class="seg" style="margin-bottom:8px">${[['score', 'Note'], ['hearts', '❤ Coups de cœur'], ['name', 'A-Z']].map(([k, t]) =>
-      `<button class="${f.sort === k ? 'on' : ''}" data-action="sort" data-k="${k}">${t}</button>`).join('')}</div>
     <div class="mut">Mon niveau : <b id="lvl">${S.level}</b>/10</div>
     <input type="range" min="1" max="10" step="0.5" value="${S.level}" data-range="level" aria-label="Mon niveau">
-    <label class="chk"><input type="checkbox" data-bind="fit" ${f.fit ? 'checked' : ''}> Masquer les pistes trop dures pour moi</label>
-  </div>
-  <h3>❤ Top coups de cœur de la station</h3>
-  <div class="hscroll">${top.map(({ p, i }) => `<button class="love" data-action="open" data-id="${p.id}">
-    <span class="sq ${p.color}" style="display:inline-block"></span> <b>${esc(p.name)}</b><br><span class="mut">${i.hearts} skieurs ont adoré</span><br>${i.score.toFixed(1)}/10</button>`).join('')}</div>
-  <h3>Toutes les pistes</h3><div id="plist">${listHtml()}</div>`;
+    <label class="chk"><input type="checkbox" data-bind="fit" ${f.fit ? 'checked' : ''}> Masquer les pistes trop dures pour moi</label></div>` : ''}
+  <div id="plist">${listHtml()}</div>`;
 }
-const listHtml = () => { const l = filtered(); return l.length ? l.map(pisteRow).join('') : '<p class="mut">Aucune piste avec ces filtres.</p>'; };
+const listHtml = () => { const l = filtered(); return l.length ? l.map(pisteRow).join('') : '<p class="mut">Aucune piste trouvée.</p>'; };
 
 function openSheet(html) { const s = $('#sheet'); s.innerHTML = `<div class="in"><button class="x" data-action="close" aria-label="Fermer">✕</button>${html}</div>`; s.hidden = false; }
 function closeSheet() { $('#sheet').hidden = true; sheetVote = null; }
@@ -269,23 +263,34 @@ function exitPocket() { $('#pocket').hidden = true; try { wakeLock?.release(); }
 
 /* ---------- Rencontres ---------- */
 const WANTS = ['Progresser', 'Rouge sportive', 'Balade', 'Pause chocolat', 'Photos', 'Famille'];
+const STATUSES = { slopes: '⛷ Sur les pistes', seek: '🤝 Cherche des partenaires', pause: '☕ En pause', home: '🏠 Rentré' };
+const NETWORKS = { instagram: ['Instagram', 'https://instagram.com/'], snapchat: ['Snapchat', 'https://www.snapchat.com/add/'], facebook: ['Facebook', 'https://facebook.com/'], strava: ['Strava', 'https://www.strava.com/athletes/'] };
+let netEdit = null;
+const chatKey = () => S.station + ':' + todayKey();
 function renderMeet() {
-  const st = station(), pr = S.profile, msgs = [...st.chat, ...(S.chat[S.station] || [])];
+  const st = station(), pr = S.profile, msgs = S.chat[chatKey()] || [];
+  const netRows = Object.entries(NETWORKS).map(([k, [name, url]]) => {
+    const h = pr.socials[k];
+    if (h) return `<div class="net-row"><b class="sp">${name}</b><a href="${url}${encodeURIComponent(h)}" target="_blank" rel="noopener noreferrer">@${esc(h)}</a><button class="btn sm ghost" data-action="netdel" data-k="${k}">Retirer</button></div>`;
+    if (netEdit === k) return `<div class="net-row"><input type="text" id="nethandle" placeholder="Ton identifiant ${name}" maxlength="40" aria-label="Identifiant ${name}"><button class="btn sm" data-action="netsave" data-k="${k}">OK</button></div>`;
+    return `<div class="net-row"><b class="sp">${name}</b><button class="btn sm sec" data-action="netedit" data-k="${k}">Connecter</button></div>`;
+  }).join('');
   return `<h2>Rencontres · ${esc(st.name)}</h2>
-  <div class="card"><b>Mon profil</b>
-    <input type="text" id="pseudo" value="${esc(pr.pseudo)}" maxlength="20" placeholder="Pseudo" style="margin:8px 0" aria-label="Pseudo">
-    <div class="mut">Niveau : <b>${S.level}</b>/10 (modifiable dans l'onglet Pistes)</div>
-    <div class="chips" style="margin:8px 0">${WANTS.map(w => `<button class="chip${pr.wants.includes(w) ? ' on' : ''}" data-action="want" data-w="${w}">${w}</button>`).join('')}</div>
-    <label class="chk"><input type="checkbox" data-bind="seek" ${pr.seek ? 'checked' : ''}> Je cherche des partenaires de ski aujourd'hui</label></div>
-  <h3>Partenaires possibles</h3>
-  ${st.partners.map(p => { const ok = Math.abs(p.lvl - S.level) <= 1.5; const com = p.wants.filter(w => pr.wants.includes(w)).length;
-    return `<div class="card row"><div class="sp"><b>${esc(p.name)}</b> · niveau ${p.lvl}/10<br><span class="mut">${p.wants.map(esc).join(' · ')}</span><br>
-      <span class="fit ${ok ? 'ok' : 'hard'}">${ok ? 'Niveau compatible' : 'Écart de niveau important'}${com ? ` · ${com} envie(s) en commun` : ''}</span></div>
-      <button class="btn sm sec" data-action="invite" data-n="${esc(p.name)}">Inviter</button></div>`; }).join('')}
-  <h3>💬 Discussion de la station</h3>
-  <div>${msgs.map(m => `<div class="msg${m.me ? ' me' : ''}"><b>${esc(m.who)}</b> <span class="mut">niv. ${m.lvl} · ${esc(m.t)}</span><br>${esc(m.text)}</div>`).join('')}</div>
-  <div class="row" style="margin-top:8px"><input type="text" id="chatin" placeholder="Écrire un message…" maxlength="300" aria-label="Message"><button class="btn sm" data-action="send">Envoyer</button></div>
-  <p class="mut">Démo : sans serveur, tes messages restent sur ton téléphone. Respecte les autres skieurs.</p>`;
+  <div class="card"><div class="me-card"><div class="avatar">${esc((pr.pseudo || 'M')[0].toUpperCase())}</div>
+    <div class="sp"><input type="text" id="pseudo" value="${esc(pr.pseudo)}" maxlength="20" placeholder="Ton pseudo" aria-label="Pseudo"><div class="mut" style="margin-top:4px">Niveau ${S.level}/10 · <span class="badge">${STATUSES[pr.status]}</span></div></div></div>
+    <h3>Mon statut</h3>
+    <div class="chips">${Object.entries(STATUSES).map(([k, t]) => `<button class="chip${pr.status === k ? ' on' : ''}" data-action="status" data-s="${k}">${t}</button>`).join('')}</div>
+    <h3>Mes envies</h3>
+    <div class="chips">${WANTS.map(w => `<button class="chip${pr.wants.includes(w) ? ' on' : ''}" data-action="want" data-w="${w}">${w}</button>`).join('')}</div>
+    <h3>Mes réseaux</h3>${netRows}
+    <p class="mut" style="margin-bottom:0">Les skieurs de la station verront ton pseudo, ton niveau, ton statut et ces liens.</p></div>
+  <h3>Skieurs de la station</h3>
+  <div class="card"><p class="mut" style="margin:0">Aucun autre skieur pour l'instant. Les profils des autres skieurs (niveau, statut, réseaux) apparaîtront ici quand l'appli sera connectée à un serveur.</p></div>
+  <h3>💬 Chat général du jour</h3>
+  <div class="mut" style="margin-bottom:8px">Ouvert à toute la station, remis à zéro chaque jour.</div>
+  ${msgs.length ? msgs.map(m => `<div class="msg${m.me ? ' me' : ''}"><b>${esc(m.who)}</b> <span class="mut">niv. ${m.lvl} · ${esc(m.t)}</span> <span class="badge">${esc(STATUSES[m.status] || '')}</span><br>${esc(m.text)}</div>`).join('') : '<p class="mut">Aucun message aujourd\'hui. Lance la discussion !</p>'}
+  <div class="row" style="margin-top:8px"><input type="text" id="chatin" placeholder="Écrire à la station…" maxlength="300" aria-label="Message"><button class="btn sm" data-action="send">Envoyer</button></div>
+  <p class="mut">Pour l'instant, sans serveur, les messages restent sur ce téléphone.</p>`;
 }
 
 /* ---------- À propos / concurrence ---------- */
@@ -346,7 +351,8 @@ document.addEventListener('click', e => {
     case 'sos': if (confirm('Appeler le 112 (urgences) ?')) location.href = 'tel:112'; break;
     case 'close': closeSheet(); break;
     case 'open': sheetVote = null; pisteSheet(d.id); break;
-    case 'preset': f.min = +d.a; f.max = +d.b; save(); render(); break;
+    case 'preset': f.min = +d.a; f.max = +d.b; f.sort = 'score'; f.open = false; save(); render(); break;
+    case 'filters': f.open = !f.open; save(); render(); break;
     case 'color': f.colors = f.colors.includes(d.c) ? f.colors.filter(c => c !== d.c) : [...f.colors, d.c]; save(); render(); break;
     case 'sort': f.sort = d.k; save(); render(); break;
     case 'pick': sheetVote = +d.n; pisteSheet(el.closest('[data-rate]').dataset.rate); break;
@@ -368,9 +374,14 @@ document.addEventListener('click', e => {
     case 'pend': pending[d.id] = +d.n; render(); break;
     case 'sendvotes': Object.entries(pending).forEach(([id, n]) => S.votes[id] = n); toast(`${Object.keys(pending).length} note(s) envoyée(s). Merci !`); pending = {}; save(); render(); break;
     case 'want': S.profile.wants = S.profile.wants.includes(d.w) ? S.profile.wants.filter(w => w !== d.w) : [...S.profile.wants, d.w]; save(); render(); break;
-    case 'invite': toast(`Invitation envoyée à ${d.n} (démo).`); break;
+    case 'status': S.profile.status = d.s; save(); render(); break;
+    case 'netedit': netEdit = d.k; render(); break;
+    case 'netsave': { const h = ($('#nethandle').value || '').trim().replace(/^@/, '');
+      if (!/^[A-Za-z0-9._-]{1,40}$/.test(h)) { toast('Identifiant invalide : lettres, chiffres, point, tiret.'); break; }
+      S.profile.socials[d.k] = h; netEdit = null; save(); render(); break; }
+    case 'netdel': delete S.profile.socials[d.k]; save(); render(); break;
     case 'send': { const i = $('#chatin'), v = i.value.trim(); if (!v) break;
-      (S.chat[S.station] = S.chat[S.station] || []).push({ who: S.profile.pseudo || 'Moi', lvl: S.level, t: hhmm(Date.now()), text: v, me: true }); save(); render(); break; }
+      (S.chat[chatKey()] = S.chat[chatKey()] || []).push({ who: S.profile.pseudo || 'Moi', lvl: S.level, status: S.profile.status, t: hhmm(Date.now()), text: v, me: true }); save(); render(); break; }
     case 'toggleclose': S.closed = S.closed.includes('combe') ? S.closed.filter(c => c !== 'combe') : [...S.closed, 'combe']; save(); render(); break;
     case 'reset': if (confirm('Effacer toutes tes données SKIP ?')) { localStorage.removeItem(KEY); location.reload(); } break;
   }
@@ -393,7 +404,6 @@ document.addEventListener('change', e => {
   else if (t.dataset.bind === 'start') { S.rf.start = t.value; save(); }
   else if (t.dataset.bind === 'avoidBlack' || t.dataset.bind === 'avoidCrowded') { S.rf[t.dataset.bind] = t.checked; save(); }
   else if (t.dataset.bind === 'audio') { S.audio = t.checked; save(); }
-  else if (t.dataset.bind === 'seek') { S.profile.seek = t.checked; save(); }
   else if (t.id === 'pseudo') { S.profile.pseudo = t.value.trim().slice(0, 20) || 'Moi'; save(); }
   else if (t.id === 'manual' && t.value) { const p = pisteOf(t.value); addLog({ type: 'piste', cands: [p.id], from: p.from, to: p.to, t: Date.now(), manual: true }); render(); }
 });
