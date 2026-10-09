@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b5fff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>SKIP APP</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">⛷️ <b>SKIP</b></div>
+  <select id="station" aria-label="Station"></select>
+  <span id="net" class="net" hidden>Hors ligne</span>
+  <button class="sos" data-action="sos" aria-label="Appeler le 112">SOS</button>
+</header>
+<main id="view"></main>
+<nav class="tabs" id="tabs">
+  <button data-tab="pistes"><i>🎿</i>Pistes</button>
+  <button data-tab="route"><i>🧭</i>Itinéraire</button>
+  <button data-tab="day"><i>📍</i>Ma journée</button>
+  <button data-tab="meet"><i>👥</i>Rencontres</button>
+  <button data-tab="about"><i>⭐</i>SKIP</button>
+</nav>
+<div id="sheet" class="sheet" hidden></div>
+<div id="pocket" class="pocket" hidden></div>
+<div id="toast" class="toast" hidden></div>
+<script src="data.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

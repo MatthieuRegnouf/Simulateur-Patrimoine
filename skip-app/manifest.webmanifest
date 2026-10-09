@@ -1,0 +1,13 @@
+{
+  "name": "SKIP APP – Notes de pistes de ski",
+  "short_name": "SKIP",
+  "description": "Note de difficulté 1 à 10 des pistes, itinéraires personnalisés et moins de temps d'écran au ski.",
+  "lang": "fr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f6fb",
+  "theme_color": "#0b5fff",
+  "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
