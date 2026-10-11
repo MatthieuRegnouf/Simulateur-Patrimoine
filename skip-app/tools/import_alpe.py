@@ -6,7 +6,7 @@ Sans argument, le flux est téléchargé depuis live.aten-altitude.com.
 Le flux donne : nom, couleur, longueur, altitudes départ/arrivée des pistes ; type, durée, altitudes, débit des remontées.
 Il ne donne PAS les connexions piste <-> remontée ni les durées de descente.
 """
-import json, re, sys, unicodedata, urllib.request
+import json, os, re, sys, unicodedata, urllib.request
 import xml.etree.ElementTree as ET
 
 URL = 'https://live.aten-altitude.com/alpehuez/atenlive.xml'
@@ -23,6 +23,10 @@ def slug(s):
 def num(v):
     m = re.search(r'\d+(?:[.,]\d+)?', v or '')
     return float(m.group(0).replace(',', '.')) if m and float(m.group(0).replace(',', '.')) > 0 else None
+
+def hours(el):
+    p = el.find('PLAGES/PLAGE')
+    return f"{p.get('heuredeb')} - {p.get('heurefin')}" if p is not None and p.get('heuredeb') else None
 
 def main():
     raw = open(sys.argv[1], 'rb').read() if len(sys.argv) > 1 else urllib.request.urlopen(URL, timeout=60).read()
@@ -41,7 +45,7 @@ def main():
         d, r = num(a.get('alt_depart')), num(a.get('alt_arrivee'))
         key = (name.lower(), a['niveau'], d, r)
         e = pistes.setdefault(key, {'name': name, 'color': COLORS[a['niveau']], 'km': km, 'altFrom': int(d) if d else None,
-                                    'altTo': int(r) if r else None, 'sectors': []})
+                                    'altTo': int(r) if r else None, 'denivele': int(num(a.get('denivele')) or 0) or None, 'hours': hours(p), 'sectors': []})
         if a['sct_id'] not in e['sectors']:
             e['sectors'].append(a['sct_id'])
     for l in root.iter('REMONTEE'):
@@ -51,16 +55,22 @@ def main():
         d, r, m = num(a.get('alt_depart')), num(a.get('alt_arrivee')), num(a.get('duree'))
         key = (a['nom'].strip().lower(), a['type'], d, r)
         e = lifts.setdefault(key, {'name': a['nom'].strip(), 'type': LIFT_TYPES[a['type']], 'altFrom': int(d) if d else None,
-                                   'altTo': int(r) if r else None, 'min': m, 'debit': int(num(a.get('debit')) or 0) or None, 'sectors': []})
+                                   'altTo': int(r) if r else None, 'min': m, 'debit': int(num(a.get('debit')) or 0) or None,
+                                   'denivele': int(num(a.get('denivele')) or 0) or None, 'hours': hours(l), 'sectors': []})
         if a['sct_id'] not in e['sectors']:
             e['sectors'].append(a['sct_id'])
     def order(sids):
         return sorted(sids, key=lambda s: (sectors[s].split(' · ')[-1] in GENERIC, sectors[s]))
+    notes = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'official_notes.json'), encoding='utf-8'))
     out_p, seen = [], {}
     for e in sorted(pistes.values(), key=lambda e: (e['color'], e['name'].lower())):
         e['sectors'] = order(e['sectors'])
         base = slug(e['name']) + '-' + e['color']; seen[base] = seen.get(base, 0) + 1
         e['id'] = base if seen[base] == 1 else f"{base}-{seen[base]}"
+        n = notes.get(e['name'].lower() + '|' + e['color'])
+        if n:
+            e['official'] = n['stats']; e['info'] = n['info']
+            if not e['km'] and n.get('km'): e['km'] = n['km']
         out_p.append(e)
     out_l, seen = [], {}
     for e in sorted(lifts.values(), key=lambda e: e['name'].lower()):
@@ -70,10 +80,12 @@ def main():
         out_l.append(e)
     used = {s for e in out_p + out_l for s in e['sectors']}
     station = {'id': 'alpe', 'name': "Espace Alpe d'Huez", 'updated': root.findtext('DATEINFO', '').strip(),
+               'site': {'km': 250, 'pistes': 111, 'colors': {'green': 34, 'blue': 31, 'red': 30, 'black': 16}, 'min': 1300, 'max': 3330},
                'sectors': {s: sectors[s] for s in sorted(used, key=lambda s: sectors[s])}, 'lifts': out_l, 'pistes': out_p}
     head = """/* Données de l'Espace Alpe d'Huez : GÉNÉRÉ par tools/import_alpe.py, ne pas modifier à la main.
    Source : flux public ATEN de l'Espace Alpe d'Huez (live.aten-altitude.com/alpehuez), repris du site skipass.alpedhuez.com.
    Contient nom, couleur, longueur et altitudes des pistes ; type, durée, altitudes et débit des remontées.
+   Complété par tools/official_notes.json (page officielle « Les pistes mythiques »).
    Ne contient pas : les connexions piste <-> remontée, les durées de descente, ni aucune note ou vote.
    Les notes et coups de cœur démarrent à zéro : seule la communauté les remplit. */
 """

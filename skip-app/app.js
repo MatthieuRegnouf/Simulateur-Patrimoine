@@ -74,7 +74,7 @@ function pisteRow(p) {
 }
 function liftRow(l) {
   return `<button class="piste" data-action="openlift" data-id="${l.id}"><span class="ico">${LIFT_ICON[l.type] || '🚡'}</span>
-    <span class="sp"><b>${esc(l.name)}</b><br><span class="mut">${[l.type, l.min ? Math.round(l.min) + ' min' : '', alts(l)].filter(Boolean).join(' · ')}</span></span></button>`;
+    <span class="sp"><b>${esc(l.name)}</b><br><span class="mut">${[l.type, l.min ? Math.round(l.min) + ' min' : '', alts(l) || (l.denivele ? 'dénivelé ' + l.denivele + ' m' : '')].filter(Boolean).join(' · ')}</span></span></button>`;
 }
 function listHtml() {
   const lifts = S.filt.view === 'lifts', l = lifts ? filteredLifts() : filteredPistes();
@@ -109,8 +109,10 @@ function pisteSheet(id) {
         : `<span class="lab ${i.label.key}">${i.label.icon} Piste ${i.label.text.toUpperCase()}</span><br><span class="mut">Ta note. La moyenne de la communauté apparaîtra quand l'appli sera connectée à un serveur.</span>`}</div></div>
     <div class="fit ${i.fit.key}" style="margin-bottom:8px">${i.fit.text} (niveau ${S.level}/10)</div>
     ${i.fit.key === 'hard' ? '<div class="warn">⚠ Cette piste est au-dessus de ton niveau. Choisis plutôt une piste plus facile.</div>' : ''}
-    <div class="data">${cell('Longueur', kmText(p.km))}${cell('Altitudes', alts(p))}${cell('Dénivelé', Engine.drop(p) ? Engine.drop(p) + ' m' : '')}
-      ${cell('Durée estimée lent / moyen / rapide', times)}${cell('Secteur', p.sectors.map(secName).join(' ; '))}</div>
+    ${p.info ? `<p style="margin:0 0 8px">${esc(p.info)}</p>` : ''}
+    ${p.official ? `<div class="warn" style="background:var(--brand2);color:var(--ink)"><b>Selon le site officiel</b><br>${p.official.map(esc).join('<br>')}</div>` : ''}
+    <div class="data">${cell('Longueur', kmText(p.km))}${cell('Altitudes', alts(p))}${cell('Dénivelé', p.denivele ? p.denivele + ' m' : !p.official && Engine.drop(p) ? Engine.drop(p) + ' m' : '')}
+      ${cell('Horaires', p.hours)}${cell('Durée estimée lent / moyen / rapide', times)}${cell('Secteur', p.sectors.map(secName).join(' ; '))}</div>
     <div class="mut">${times ? 'Durée estimée d\'après la longueur (hypothèse de vitesse). ' : ''}Source : flux officiel de l'Espace Alpe d'Huez.</div>
     <h3>${mine ? 'Ta note' : 'Donne ta note'}</h3><div class="mut">1 = très facile · 10 = très difficile</div>
     <div class="rate" data-rate="${id}">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button style="background:${scoreColor(n)}" class="${sel === n ? 'on' : ''}" data-action="pick" data-n="${n}">${n}</button>`).join('')}</div>
@@ -123,8 +125,8 @@ function pisteSheet(id) {
 function liftSheet(id) {
   const l = liftOf(id), cell = (k, v) => v ? `<div>${k}<b>${esc(v)}</b></div>` : '';
   openSheet(`<div class="row"><span class="ico">${LIFT_ICON[l.type] || '🚡'}</span><h2 style="margin:0">${esc(l.name)}</h2></div><div class="mut">${esc(l.type)}</div>
-    <div class="data" style="margin-top:12px">${cell('Durée du trajet', l.min ? Math.round(l.min) + ' min' : '')}${cell('Altitudes', alts(l))}${cell('Dénivelé', l.altFrom && l.altTo ? l.altTo - l.altFrom + ' m' : '')}
-      ${cell('Débit maximum', l.debit ? l.debit + ' pers/h' : '')}${cell('Secteur', l.sectors.map(secName).join(' ; '))}</div>
+    <div class="data" style="margin-top:12px">${cell('Durée du trajet', l.min ? Math.round(l.min) + ' min' : '')}${cell('Altitudes', alts(l))}${cell('Dénivelé', l.denivele ? l.denivele + ' m' : l.altFrom && l.altTo ? l.altTo - l.altFrom + ' m' : '')}
+      ${cell('Horaires', l.hours)}${cell('Débit maximum', l.debit ? l.debit + ' pers/h' : '')}${cell('Secteur', l.sectors.map(secName).join(' ; '))}</div>
     <div class="mut">Source : flux officiel de l'Espace Alpe d'Huez. Les informations manquantes ne sont pas fournies.</div>
     <div style="height:12px"></div><button class="btn sec" data-action="addstep" data-k="l" data-id="${id}">➕ Ajouter à mon parcours</button>`);
 }
@@ -433,6 +435,7 @@ function renderAbout() {
     <div>⭐ Notes en fin de journée, en un clic par piste</div><div>🔊 Guidage audio du parcours</div><div>📵 Compteur de temps d'écran quotidien</div></div>
   <h3>Données</h3>
   <div class="card"><div class="mut">${st.pistes.length} pistes et ${st.lifts.length} remontées de l'Espace Alpe d'Huez, issues du flux officiel de la station (mise à jour du ${esc(st.updated)}). Aucune note, aucun vote, aucun coup de cœur n'est inventé : tout démarre à zéro.</div>
+    <p class="mut" style="margin:8px 0 0">Chiffres annoncés par le site de l'Espace Alpe d'Huez : ${st.site.km} km, ${st.site.pistes} pistes (${st.site.colors.green} vertes, ${st.site.colors.blue} bleues, ${st.site.colors.red} rouges, ${st.site.colors.black} noires), de ${st.site.min} à ${st.site.max} m. Le détail du flux donne ${['green', 'blue', 'red', 'black'].map(c => st.pistes.filter(p => p.color === c).length).join(' / ')} : l'écart par couleur vient des données de la station.</p>
     <button class="btn ghost" data-action="reset" style="margin-top:8px">Réinitialiser mes données</button></div>`;
 }
 

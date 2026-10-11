@@ -22,7 +22,7 @@ Servie en HTTPS, l'appli s'installe sur l'écran d'accueil (Android : « Install
 python3 tools/import_alpe.py          # télécharge le flux et réécrit data.js
 python3 tools/import_alpe.py flux.xml # ou lit un fichier local
 ```
-Le flux contient nom, couleur, longueur et altitudes des pistes, type/durée/altitudes/débit des remontées. Il ne contient **pas** les connexions piste ↔ remontée ni les durées de descente (estimées ici d'après la longueur : 12 / 18 / 26 km/h selon ta vitesse). Total : 111 pistes comme sur le site (31 bleues et 16 noires identiques ; le flux compte 37 vertes et 27 rouges contre 34 et 30 annoncées).
+Le flux contient nom, couleur, longueur et altitudes des pistes, type/durée/altitudes/débit des remontées. Il ne contient **pas** les connexions piste ↔ remontée ni les durées de descente (estimées ici d'après la longueur : 12 / 18 / 26 km/h selon ta vitesse). Il est complété par `tools/official_notes.json` (fiches officielles Sarenne, Tunnel, La Fare, page « Pistes mythiques »). Total : 111 pistes comme sur le site (31 bleues et 16 noires identiques ; le flux compte 37 vertes et 27 rouges contre 34 et 30 annoncées : les couleurs du flux sont conservées telles quelles).
 
 ## Limites
 - Il manque un backend : votes partagés (la moyenne communautaire n'existe pas encore), chat commun, connexion réelle aux réseaux (OAuth) et annuaire des skieurs. Le partage se fait par message texte contenant un code `SKIP:…`.
