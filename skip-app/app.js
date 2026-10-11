@@ -11,9 +11,9 @@ const COLORS = ['green', 'blue', 'red', 'black'], RANK = { green: 0, blue: 1, re
 const defaults = () => ({
   station: 'alpe', tab: 'pistes', level: 5, audio: true,
   profile: { pseudo: '', discipline: 'ski', wants: [], status: 'slopes', socials: {} },
-  votes: {}, hearts: [], log: {}, route: null, chat: {}, screen: {}, friends: {}, draft: [],
+  votes: {}, hearts: [], log: {}, route: null, chat: {}, screen: {}, friends: {},
   filt: { colors: [], q: '', sector: '', sort: 'color', fit: false, open: false, view: 'pistes' },
-  rf: { speed: 'medium', kind: 'lift', sector: '', colors: COLORS.slice(), q: '' }
+  rf: { start: '', end: '', budget: 120, speed: 'medium', colors: ['green', 'blue', 'red'], walk: true, variant: 0 }
 });
 let S = (() => { try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return defaults(); } })();
 S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf };
@@ -34,7 +34,8 @@ const info = p => {
 const scoreBubble = (s, big) => s == null ? `<div class="score none${big ? ' big' : ''}">–<small>non noté</small></div>`
   : `<div class="score${big ? ' big' : ''}" style="background:${scoreColor(s)}">${String(s).replace('.', ',')}<small>/10</small></div>`;
 
-let guide = null, pending = {}, sheetVote = null, netEdit = null;
+let guide = null, pending = {}, sheetVote = null, netEdit = null, plan = null, planMsg = '';
+const NET = typeof GRAPH !== 'undefined' ? Engine.buildNet(GRAPH) : null;
 let watchId = null, trk = Engine.newTracker(), wakeLock = null, altWarned = false;
 
 function toast(msg, ms = 3200) {
@@ -120,7 +121,7 @@ function pisteSheet(id) {
     <h3>Coup de cœur</h3>
     <button class="heart${liked ? ' on' : ''}" data-action="heart" data-id="${id}">${liked ? '❤️ Dans mes coups de cœur' : '🤍 Ajouter aux coups de cœur'}</button>
     <div class="mut" style="margin-top:4px">Le nombre de skieurs qui l'ont adorée apparaîtra avec le serveur.</div>
-    <div class="row" style="margin-top:12px"><button class="btn sec" data-action="addstep" data-k="p" data-id="${id}">➕ À mon parcours</button><button class="btn sec" data-action="skied" data-id="${id}">✅ Skiée aujourd'hui</button></div>`);
+    <div style="margin-top:12px"><button class="btn sec" data-action="skied" data-id="${id}">✅ Skiée aujourd'hui</button></div>`);
 }
 function liftSheet(id) {
   const l = liftOf(id), cell = (k, v) => v ? `<div>${k}<b>${esc(v)}</b></div>` : '';
@@ -128,99 +129,108 @@ function liftSheet(id) {
     <div class="data" style="margin-top:12px">${cell('Durée du trajet', l.min ? Math.round(l.min) + ' min' : '')}${cell('Altitudes', alts(l))}${cell('Dénivelé', l.denivele ? l.denivele + ' m' : l.altFrom && l.altTo ? l.altTo - l.altFrom + ' m' : '')}
       ${cell('Horaires', l.hours)}${cell('Débit maximum', l.debit ? l.debit + ' pers/h' : '')}${cell('Secteur', l.sectors.map(secName).join(' ; '))}</div>
     <div class="mut">Source : flux officiel de l'Espace Alpe d'Huez. Les informations manquantes ne sont pas fournies.</div>
-    <div style="height:12px"></div><button class="btn sec" data-action="addstep" data-k="l" data-id="${id}">➕ Ajouter à mon parcours</button>`);
+`);
 }
 
-/* ---------- Parcours ---------- */
-const draftSteps = () => S.draft.map(d => d.k === 'l' ? { kind: 'lift', ref: liftOf(d.id) } : { kind: 'piste', ref: pisteOf(d.id) }).filter(s => s.ref);
-const stepTitle = s => s.kind === 'lift' ? s.ref.name : `${s.ref.name}`;
-function stepText(s, speed = S.rf.speed) {
-  const m = Engine.stepMin(s.kind, s.ref, speed);
-  return s.kind === 'lift' ? `Prenez ${s.ref.name}${m ? ', environ ' + m + ' minutes' : ''}.` : `Descendez ${s.ref.name}, piste ${colorName(s.ref.color).toLowerCase()}${s.ref.km ? ', ' + String(s.ref.km).replace('.', ',') + ' kilomètres' : ''}.`;
+/* ---------- Itinéraire ---------- */
+const LIFT_FR = { gondola: 'Télécabine', chair_lift: 'Télésiège', mixed_lift: 'Télémix', cable_car: 'Téléphérique', platter: 'Téléski', magic_carpet: 'Tapis', rope_tow: 'Téléski', drag_lift: 'Téléski', 't-bar': 'Téléski', 'j-bar': 'Téléski' };
+const DUR = [[60, '1 h'], [90, '1 h 30'], [120, '2 h'], [180, '3 h'], [240, '4 h']];
+const starts = () => NET ? Engine.startPoints(NET) : [];
+function startIndex(name) {
+  const list = starts(); if (!list.length) return null;
+  const hit = list.find(p => p.name === name) || list.find(p => p.name === 'Départ Signal') || list[0];
+  return hit.i;
 }
-function profileSvg(steps, speed) {
-  const W = 340, H = 220, L = 46, R = 10, T = 16, B = 18;
-  const all = steps.flatMap(s => [s.ref.altFrom, s.ref.altTo]).filter(Boolean);
-  if (!all.length) return '';
-  const lo = Math.floor(Math.min(...all) / 100) * 100 - 100, hi = Math.ceil(Math.max(...all) / 100) * 100 + 100;
-  const y = a => T + (hi - a) / (hi - lo) * (H - T - B);
-  const mins = steps.map(s => Engine.stepMin(s.kind, s.ref, speed) || 6), tot = mins.reduce((a, b) => a + b, 0);
-  const x = t => L + t / tot * (W - L - R);
-  const step = hi - lo > 1200 ? 500 : 250, grid = [];
-  for (let a = Math.ceil(lo / step) * step; a <= hi; a += step) grid.push(`<line x1="${L}" x2="${W - R}" y1="${y(a)}" y2="${y(a)}" style="stroke:var(--line)"/><text x="${L - 5}" y="${y(a) + 3}" text-anchor="end" font-size="9" style="fill:var(--mut)">${a} m</text>`);
-  let t = 0, cur = null, marks = '', lines = '';
-  steps.forEach((s, i) => {
-    const x0 = x(t), x1 = x(t + mins[i]), a0 = s.ref.altFrom ?? cur, a1 = s.ref.altTo ?? a0;
-    if (i > 0 && cur && s.ref.altFrom && Math.abs(cur - s.ref.altFrom) > Engine.LIFT_GAP_M) lines += `<line x1="${x0}" x2="${x0}" y1="${y(cur)}" y2="${y(s.ref.altFrom)}" stroke="#e5372b" stroke-width="2" stroke-dasharray="2 3"/>`;
-    if (a0 != null && a1 != null) {
-      const col = s.kind === 'lift' ? '#6b7690' : `var(--${s.ref.color})`;
-      lines += `<line x1="${x0}" y1="${y(a0)}" x2="${x1}" y2="${y(a1)}" style="stroke:${col}" stroke-width="5" stroke-linecap="round" ${s.kind === 'lift' ? 'stroke-dasharray="7 5"' : ''}/>`;
-      marks += `<circle cx="${(x0 + x1) / 2}" cy="${(y(a0) + y(a1)) / 2}" r="10" style="fill:${s.kind === 'lift' ? '#3d4660' : 'var(--' + s.ref.color + ')'}" stroke="#fff" stroke-width="2"/><text x="${(x0 + x1) / 2}" y="${(y(a0) + y(a1)) / 2 + 4}" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${i + 1}</text>`;
-    }
-    cur = a1 ?? cur; t += mins[i];
-  });
-  return `<svg class="map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Profil d'altitude du parcours">${grid.join('')}${lines}${marks}</svg>
-    <div class="mut" style="margin-top:6px">Profil d'altitude : les remontées montent (pointillés), les pistes descendent (couleur officielle). Pointillé rouge = les deux étapes ne s'enchaînent pas à la même altitude.</div>`;
+const stepName = s => s.kind === 'piste' ? (s.name || `Piste ${colorName(s.color).toLowerCase()} sans nom`) : s.name;
+const liftType = s => (s.o && liftOf(s.o)?.type) || LIFT_FR[s.y] || 'Remontée';
+const mText = m => m >= 1000 ? (m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(m / 10) * 10 + ' m';
+function stepText(s) {
+  if (s.kind === 'lift') return `Prenez ${s.name}, ${s.min} minutes. Arrivée : ${s.toName}.`;
+  if (s.kind === 'piste') return `Descendez ${stepName(s)}, piste ${colorName(s.color).toLowerCase()}, ${mText(s.m)}, environ ${s.min} minutes.`;
+  if (s.kind === 'walk') return `Marchez ${mText(s.m)} en chaussures de ski, environ ${s.min} minutes, jusqu'à ${s.toName}.`;
+  return `Liaison à ski, ${mText(s.m)}, jusqu'à ${s.toName}.`;
 }
-function stepsHtml(steps, speed, edit) {
-  let prev = null;
-  return steps.map((s, i) => {
-    const g = prev ? Engine.gap(prev.ref, s.ref) : { ok: null };
-    const m = Engine.stepMin(s.kind, s.ref, speed), est = s.kind === 'piste' && m;
-    prev = s;
-    const col = s.kind === 'lift' ? '#3d4660' : `var(--${s.ref.color})`;
-    return `${g.ok === false ? `<div class="warn" style="margin:6px 0">⚠ Tu arrives vers ${esc(String(steps[i - 1].ref.altTo))} m et cette étape part de ${esc(String(s.ref.altFrom))} m (écart ${g.d} m). Vérifie le chemin sur le plan officiel.</div>` : ''}
-    <div class="step"><div class="num" style="background:${col}">${i + 1}</div><div class="sp"><b>${s.kind === 'lift' ? 'Remontée' : 'Piste ' + colorName(s.ref.color).toLowerCase()} · ${esc(stepTitle(s))}</b><br>
-      <span class="mut">${[s.kind === 'lift' ? s.ref.type : '', alts(s.ref), m ? (est ? '≈ ' : '') + m + ' min' : 'durée inconnue', s.kind === 'piste' ? kmText(s.ref.km) : ''].filter(Boolean).join(' · ')}</span></div>
-      ${edit ? `<button class="btn sm ghost" data-action="rm" data-i="${i}" aria-label="Retirer l'étape ${i + 1}">✕</button>` : ''}</div>`;
-  }).join('');
+function mapSvg(pl) {
+  const W = 340, H = 340, pts = pl.steps.flatMap(s => s.coords);
+  let la0 = Math.min(...pts.map(p => p[0])), la1 = Math.max(...pts.map(p => p[0])), lo0 = Math.min(...pts.map(p => p[1])), lo1 = Math.max(...pts.map(p => p[1]));
+  const k = Math.cos((la0 + la1) / 2 * Math.PI / 180), padLa = (la1 - la0) * 0.08 + 0.0008, padLo = (lo1 - lo0) * 0.08 + 0.001;
+  la0 -= padLa; la1 += padLa; lo0 -= padLo; lo1 += padLo;
+  const sc = Math.min((W - 16) / ((lo1 - lo0) * k), (H - 16) / (la1 - la0)), ox = (W - (lo1 - lo0) * k * sc) / 2, oy = (H - (la1 - la0) * sc) / 2;
+  const X = lo => ox + (lo - lo0) * k * sc, Y = la => oy + (la1 - la) * sc;
+  const path = c => 'M' + c.map(p => X(p[1]).toFixed(1) + ' ' + Y(p[0]).toFixed(1)).join('L');
+  const used = new Set(pl.steps.flatMap(s => s.edges));
+  const bg = NET.edges.filter(e => !used.has(e.id)).map(e => { const g = NET.geom(e), p = g[0]; return p[0] > la0 && p[0] < la1 && p[1] > lo0 && p[1] < lo1 ? `<path d="${path(g)}" fill="none" style="stroke:${e.k === 'piste' ? 'var(--' + e.c + ')' : 'var(--mut)'}" stroke-opacity=".28" stroke-width="1.2"/>` : ''; }).join('');
+  const line = pl.steps.map(s => `<path d="${path(s.coords)}" fill="none" style="stroke:${s.kind === 'piste' ? 'var(--' + s.color + ')' : s.kind === 'lift' ? '#3d4660' : '#a0702a'}" stroke-width="${s.kind === 'piste' ? 4 : 3}" stroke-linecap="round" stroke-linejoin="round" ${s.kind === 'lift' ? 'stroke-dasharray="7 4"' : s.kind === 'walk' ? 'stroke-dasharray="2 4"' : ''}/>`).join('');
+  const badge = (s, i) => { const c = s.coords[Math.floor(s.coords.length / 2)], col = s.kind === 'piste' ? 'var(--' + s.color + ')' : s.kind === 'lift' ? '#3d4660' : '#a0702a';
+    return `<circle cx="${X(c[1]).toFixed(1)}" cy="${Y(c[0]).toFixed(1)}" r="8.5" style="fill:${col}" stroke="#fff" stroke-width="1.5"/><text x="${X(c[1]).toFixed(1)}" y="${(Y(c[0]) + 3.5).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="800" fill="#fff">${i + 1}</text>`; };
+  const f = pl.steps[0].coords[0], e = pl.steps[pl.steps.length - 1].coords.slice(-1)[0];
+  const flag = (p, t, c) => `<circle cx="${X(p[1]).toFixed(1)}" cy="${Y(p[0]).toFixed(1)}" r="6" style="fill:${c}" stroke="#fff" stroke-width="2"/><text x="${(X(p[1]) + 9).toFixed(1)}" y="${(Y(p[0]) - 7).toFixed(1)}" font-size="10" font-weight="800" style="fill:var(--ink)" stroke="var(--card)" stroke-width="3" paint-order="stroke">${t}</text>`;
+  return `<svg class="map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Carte de l'itinéraire">${bg}${line}${pl.steps.map(badge).join('')}${Math.abs(f[0] - e[0]) + Math.abs(f[1] - e[1]) < 0.0004 ? flag(f, 'DÉPART · ARRIVÉE', '#0b5fff') : flag(f, 'DÉPART', '#1fb04a') + flag(e, 'ARRIVÉE', '#0b5fff')}</svg>
+    <div class="mut" style="margin-top:6px">Trait plein = piste (couleur officielle) · pointillés longs = remontée · pointillés courts = marche · fond clair = autres pistes. Tracés © contributeurs OpenStreetMap.</div>`;
 }
-function summaryHtml(steps, speed) {
-  const s = Engine.summary(steps, speed);
-  return `<div class="stats"><div><b>${s.total ? '≈ ' + fmtMin(s.total) : '–'}</b><span>durée</span></div><div><b>${s.descents}</b><span>descentes</span></div><div><b>${s.km ? String(s.km).replace('.', ',') : '–'}</b><span>km skiés</span></div><div><b>${s.down || '–'}</b><span>m descendus</span></div></div>
-    ${s.unknown ? `<div class="mut" style="margin-top:6px">${s.unknown} étape(s) sans durée connue ne sont pas comptées.</div>` : ''}
-    <div class="mut" style="margin-top:4px">Remontées : durées officielles. Descentes : durée estimée d'après la longueur. Attentes non incluses.</div>`;
+function stepsHtml(pl) {
+  return pl.steps.map((s, i) => {
+    const col = s.kind === 'piste' ? `var(--${s.color})` : s.kind === 'lift' ? '#3d4660' : '#a0702a';
+    const head = s.kind === 'lift' ? `🚡 ${esc(liftType(s))} · ${esc(s.name)}` : s.kind === 'piste' ? `Piste ${colorName(s.color).toLowerCase()} · ${esc(stepName(s))}` : s.kind === 'walk' ? '🚶 À pied (chaussures de ski)' : '↝ Liaison à ski';
+    const info = (s.o && (s.kind === 'piste' ? pisteOf(s.o) : liftOf(s.o))) ? `<button class="btn sm ghost" data-action="openstep" data-i="${i}" aria-label="Détails">ℹ︎</button>` : '';
+    return `<div class="step"><div class="num" style="background:${col}">${i + 1}</div><div class="sp"><b>${head}</b><br>
+      <span class="mut">De : ${esc(s.fromName)}${s.altFrom && !s.fromName.startsWith('Carrefour') ? ` (${s.altFrom} m)` : ''}<br>À : ${esc(s.toName)}${s.altTo && !s.toName.startsWith('Carrefour') ? ` (${s.altTo} m)` : ''}<br>${mText(s.m)} · ${s.min} min</span></div>${info}</div>`;
+  }).join('') + `<div class="step"><div class="num" style="background:var(--brand)">🏁</div><div class="sp"><b>Arrivée</b><br><span class="mut">${esc(pl.steps[pl.steps.length - 1].toName)}</span></div></div>`;
 }
-function candidates() {
-  const f = S.rf, st = station(), steps = draftSteps(), last = steps[steps.length - 1], q = norm(f.q).trim();
-  let l = (f.kind === 'lift' ? st.lifts : st.pistes.filter(p => f.colors.includes(p.color))).filter(x => (!f.sector || x.sectors.includes(f.sector)) && (!q || norm(x.name).includes(q)));
-  const rank = x => { if (!last) return 1; const g = Engine.gap(last.ref, x); return g.ok === true ? 0 : g.ok === null ? 1 : 2; };
-  l = l.map(x => ({ x, g: last ? Engine.gap(last.ref, x) : { ok: null } })).sort((a, b) => rank(a.x) - rank(b.x) || a.x.name.localeCompare(b.x.name));
-  return l;
-}
-function candHtml() {
-  const f = S.rf, l = candidates(), shown = l.slice(0, 40);
-  return (shown.map(({ x, g }) => `<div class="step"><span class="${f.kind === 'lift' ? 'ico' : 'sq ' + x.color}"${f.kind === 'lift' ? '' : ' style="margin-top:4px"'}>${f.kind === 'lift' ? (LIFT_ICON[x.type] || '🚡') : ''}</span>
-    <div class="sp"><b>${esc(x.name)}</b>${g.ok === true ? ' <span class="badge" style="background:#dff5e6;color:#12803a">✓ enchaîne</span>' : ''}<br><span class="mut">${[f.kind === 'lift' ? x.type : '', alts(x), f.kind === 'lift' ? (x.min ? Math.round(x.min) + ' min' : '') : kmText(x.km)].filter(Boolean).join(' · ')}</span></div>
-    <button class="btn sm sec" data-action="addstep" data-k="${f.kind === 'lift' ? 'l' : 'p'}" data-id="${x.id}">➕</button></div>`).join('') || '<p class="mut">Aucun résultat.</p>')
-    + (l.length > 40 ? `<p class="mut">${l.length - 40} autres : précise le secteur ou la recherche.</p>` : '');
+function planSummary(pl) {
+  const cols = {}; pl.steps.filter(s => s.kind === 'piste').forEach(s => cols[s.color] = (cols[s.color] || 0) + 1);
+  const st0 = pl.steps[0], stN = pl.steps[pl.steps.length - 1];
+  return `<p style="margin:0 0 10px">Tu pars de <b>${esc(st0.fromName)}</b> et tu finis à <b>${esc(stN.toName)}</b>, en ${pl.steps.length} étapes.</p>
+    <div class="stats"><div><b>${fmtMin(pl.total)}</b><span>durée</span></div><div><b>${pl.descents}</b><span>pistes</span></div><div><b>${String(pl.km).replace('.', ',')}</b><span>km skiés</span></div><div><b>${pl.down}</b><span>m descendus</span></div></div>
+    <div class="chips" style="margin-top:8px">${Object.entries(cols).map(([c, n]) => `<span class="chip"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${n}</span>`).join('')}${pl.walkMin ? `<span class="chip">🚶 ${pl.walkMin} min à pied</span>` : ''}</div>
+    ${pl.offColor ? `<div class="mut" style="margin-top:6px">dont ${pl.offColor} min sur des pistes plus faciles que celles choisies, pour relier les secteurs.</div>` : ''}
+    ${Math.abs(pl.total - pl.opt.budget) > pl.opt.budget * 0.15 ? `<div class="mut" style="margin-top:6px">Durée demandée : ${fmtMin(pl.opt.budget)}. C'est le meilleur parcours trouvé.</div>` : ''}
+    <div class="mut" style="margin-top:6px">Remontées : durées officielles (sans attente). Descentes et marche : durées estimées d'après la longueur.</div>`;
 }
 function renderRoute() {
-  const st = station(), f = S.rf, steps = draftSteps();
-  const saved = S.route && S.route.stationId === S.station ? S.route : null;
-  return `<h2>Mon parcours</h2>
-  ${guide ? `<div class="card" style="border-color:var(--brand)"><b>🔊 Guidage en cours</b><div style="margin:6px 0">${guide.idx < guide.steps.length ? 'Prochaine étape : ' + esc(stepText(guide.steps[guide.idx])) : '🎉 Parcours terminé !'}</div>
+  const f = S.rf, list = starts(), saved = S.route && S.route.stationId === S.station ? S.route : null;
+  if (!NET) return '<h2>Mon itinéraire</h2><p class="mut">Le réseau des pistes n\'est pas disponible.</p>';
+  const si = startIndex(f.start), ei = f.end ? startIndex(f.end) : null;
+  const opt = p => `<option value="${esc(p.name)}">${esc(p.name)} (${p.alt} m)</option>`;
+  return `<h2>Mon itinéraire</h2>
+  ${guide ? `<div class="card" style="border-color:var(--brand)"><b>🔊 Guidage en cours</b><div style="margin:6px 0">${guide.idx < guide.steps.length ? 'Prochaine étape : ' + esc(stepText(guide.steps[guide.idx])) : '🎉 Itinéraire terminé !'}</div>
     <div class="row"><button class="btn sm" data-action="gnext">Étape suivante</button><button class="btn sm ghost" data-action="gstop">Arrêter</button></div></div>` : ''}
   <div class="card">
-    <div class="mut">Ta vitesse</div>
-    <div class="seg" style="margin:6px 0 10px">${[['slow', '🐢 Lent'], ['medium', '⛷ Moyen'], ['fast', '⚡ Rapide']].map(([k, t]) => `<button class="${f.speed === k ? 'on' : ''}" data-action="rspeed" data-v="${k}">${t}</button>`).join('')}</div>
-    ${steps.length ? `${summaryHtml(steps, f.speed)}<div style="height:8px"></div>${stepsHtml(steps, f.speed, true)}
-      <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-action="clear">Tout effacer</button></div>`
-      : '<p class="mut" style="margin:0">Construis ton parcours : ajoute une remontée, puis une piste qui part de là où tu arrives, et ainsi de suite. Les étapes qui enchaînent bien sont signalées ✓.</p>'}
+    <label class="mut" for="rstart">D'où pars-tu ?</label>
+    <select class="f" id="rstart" data-bind="rstart">${list.map(p => opt(p).replace('<option ', `<option ${p.i === si ? 'selected ' : ''}`)).join('')}</select>
+    <div style="height:10px"></div><label class="mut" for="rend">Où veux-tu finir ?</label>
+    <select class="f" id="rend" data-bind="rend"><option value="">Au même endroit</option>${list.map(p => opt(p).replace('<option ', `<option ${f.end && p.i === ei ? 'selected ' : ''}`)).join('')}</select>
+    <div style="height:10px"></div><div class="mut">Combien de temps ?</div>
+    <div class="chips" style="margin-top:6px">${DUR.map(([m, t]) => `<button class="chip${f.budget === m ? ' on' : ''}" data-action="rf" data-k="budget" data-v="${m}">${t}</button>`).join('')}</div>
+    <div style="height:10px"></div><div class="mut">Quelles pistes ?</div>
+    <div class="chips" style="margin-top:6px">${COLORS.map(c => `<button class="chip${f.colors.includes(c) ? ' on' : ''}" data-action="rcolor" data-c="${c}"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${colorName(c)}</button>`).join('')}</div>
+    <div class="mut" style="margin-top:4px">Jamais plus difficile que ta couleur la plus dure. Les pistes plus faciles peuvent servir de liaison.</div>
+    <div style="height:10px"></div><div class="mut">Ta vitesse</div>
+    <div class="seg" style="margin-top:6px">${[['slow', '🐢 Lent'], ['medium', '⛷ Moyen'], ['fast', '⚡ Rapide']].map(([k, t]) => `<button class="${f.speed === k ? 'on' : ''}" data-action="rf" data-k="speed" data-v="${k}">${t}</button>`).join('')}</div>
+    <label class="chk"><input type="checkbox" data-bind="rwalk" ${f.walk ? 'checked' : ''}> Autoriser de courts chemins à pied (en chaussures de ski)</label>
+    <button class="btn" data-action="plan">Créer mon itinéraire</button>
   </div>
-  ${steps.length ? `<div class="card">${profileSvg(steps, f.speed)}</div>
-    <div class="row"><button class="btn sec" data-action="download">📥 Hors ligne</button><button class="btn sec" data-action="gstart">🔊 Guidage</button></div>
-    <div style="height:8px"></div><button class="btn ghost" data-action="share" data-k="route">📤 Partager ce parcours</button>` : ''}
-  <h3>Ajouter une étape</h3>
-  <div class="card">
-    <div class="seg" style="margin-bottom:10px"><button class="${f.kind === 'lift' ? 'on' : ''}" data-action="rkind" data-v="lift">🚡 Remontées</button><button class="${f.kind === 'piste' ? 'on' : ''}" data-action="rkind" data-v="piste">🎿 Pistes</button></div>
-    ${f.kind === 'piste' ? `<div class="chips" style="margin-bottom:10px">${COLORS.map(c => `<button class="chip${f.colors.includes(c) ? ' on' : ''}" data-action="rcolor" data-c="${c}"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${colorName(c)}</button>`).join('')}</div>` : ''}
-    <select class="f" data-bind="rsector" aria-label="Secteur" style="margin-bottom:10px"><option value="">Tous les secteurs</option>${Object.entries(st.sectors).map(([id, n]) => `<option value="${id}" ${f.sector === id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
-    <input type="search" id="rq" placeholder="🔍 Chercher par nom" value="${esc(f.q)}" aria-label="Rechercher une étape" autocomplete="off" style="margin-bottom:6px">
-    <div id="clist">${candHtml()}</div></div>
-  ${saved ? `<div class="card"><b>📥 Parcours téléchargé</b><div class="mut">Enregistré le ${new Date(saved.savedAt).toLocaleString('fr-FR')}, disponible sans réseau.</div>
+  ${planMsg ? `<div class="warn">${esc(planMsg)}</div>` : ''}
+  ${plan ? `<div class="card"><h3 style="margin-top:0">Ton itinéraire</h3>${planSummary(plan)}</div>
+    <div class="card">${mapSvg(plan)}</div>
+    <div class="card"><h3 style="margin-top:0">Étape par étape</h3>${stepsHtml(plan)}</div>
+    <div class="row"><button class="btn sec" data-action="plan" data-next="1">↻ Autre proposition</button><button class="btn sec" data-action="download">📥 Hors ligne</button></div>
+    <div style="height:8px"></div><div class="row"><button class="btn sec" data-action="gstart">🔊 Guidage audio</button><button class="btn ghost" data-action="share" data-k="route">📤 Partager</button></div>` : ''}
+  ${saved ? `<div class="card"><b>📥 Itinéraire téléchargé</b><div class="mut">Enregistré le ${new Date(saved.savedAt).toLocaleString('fr-FR')}, disponible sans réseau.</div>
     <div class="row" style="margin-top:8px"><button class="btn sm sec" data-action="loadsaved">Ouvrir</button><button class="btn sm ghost" data-action="delsaved">Supprimer</button></div></div>` : ''}
-  <p class="mut">Les connexions exactes entre pistes et remontées ne sont pas dans les données officielles : l'appli compare les altitudes, vérifie toujours sur le plan de la station.</p>`;
+  <p class="mut">Les liaisons entre pistes, remontées et chemins viennent de la carte OpenStreetMap, rapprochée des données officielles. Elles peuvent contenir des erreurs : vérifie toujours sur le plan officiel et sur place, et respecte la fermeture des pistes et le balisage.</p>`;
+}
+const generate = next => generateAt(next ? (S.rf.variant || 0) + 1 : 0);
+function generateAt(v) {
+  const f = S.rf; f.variant = v;
+  const si = startIndex(f.start), ei = f.end ? startIndex(f.end) : si;
+  const r = Engine.planRoute(NET, { start: si, end: ei, budget: f.budget, speed: f.speed, colors: f.colors, walk: f.walk, variant: f.variant });
+  planMsg = '';
+  if (r.error) {
+    plan = null;
+    planMsg = !f.colors.length ? 'Choisis au moins une couleur de piste.' : !f.walk ? "Aucun itinéraire sans marche depuis ce départ : autorise les courts chemins à pied." : "Aucun itinéraire trouvé avec ces choix : essaie une durée plus longue, une autre couleur ou un autre départ.";
+  } else plan = r;
+  save(); render();
 }
 
 /* ---------- Ma journée ---------- */
@@ -321,19 +331,19 @@ const b64e = o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(
 const b64d = c => JSON.parse(decodeURIComponent(escape(atob(c.replace(/-/g, '+').replace(/_/g, '/')))));
 function sharePayload(kind) {
   const pr = S.profile;
-  const r = kind === 'route' && S.draft.length ? { st: S.station, steps: S.draft.map(d => d.k + ':' + d.id), speed: S.rf.speed } : null;
+  const f = S.rf, r = kind === 'route' && plan ? { start: starts().find(p => p.i === plan.opt.start)?.name, end: plan.opt.end !== plan.opt.start ? starts().find(p => p.i === plan.opt.end)?.name : '', budget: plan.opt.budget, speed: plan.opt.speed, colors: plan.opt.colors, walk: plan.opt.walk, variant: plan.opt.variant } : null;
   return { v: 2, n: pr.pseudo || 'Skieur', l: S.level, d: pr.discipline, s: pr.status, w: pr.wants, so: pr.socials, st: S.station, h: S.hearts, r, t: Date.now() };
 }
 function shareText(kind) {
-  const pl = sharePayload(kind), hn = heartNames(S.hearts), steps = draftSteps();
+  const pl = sharePayload(kind), hn = heartNames(S.hearts);
   const lines = [`⛷ ${pl.n} sur SKIP, ${station().name}`, `Niveau ${pl.l}/10 · ${pl.d === 'snowboard' ? 'snowboard' : 'ski'} · ${STATUSES[pl.s]}`];
-  if (kind === 'route' && steps.length) lines.push(`🧭 Parcours : ${steps.map(s => s.ref.name).join(' → ')}`);
+  if (kind === 'route' && plan) lines.push(`🧭 Itinéraire de ${fmtMin(plan.total)} : ${plan.steps.filter(s => s.kind === 'piste' && s.name).map(s => s.name).slice(0, 12).join(' → ')}`);
   if ((kind === 'hearts' || kind === 'profile') && hn.length) lines.push(`❤ Mes coups de cœur : ${hn.join(', ')}`);
   lines.push('', "Pour m'ajouter : colle ce message dans SKIP > Rencontres > « Ajouter un skieur ».", 'SKIP:' + b64e(pl));
   return lines.join('\n');
 }
 function openShare(kind) {
-  if (kind === 'route' && !S.draft.length) return toast("Construis d'abord un parcours.");
+  if (kind === 'route' && !plan) return toast("Crée d'abord un itinéraire.");
   const txt = shareText(kind), enc = encodeURIComponent(txt);
   if (navigator.share) { navigator.share({ title: 'SKIP', text: txt }).catch(() => {}); return; }
   openSheet(`<h2>Partager</h2><p class="mut">Envoie ce message à tes amis. Ils le collent dans SKIP pour te retrouver.</p>
@@ -353,11 +363,9 @@ function importFriend(raw) {
     w: (Array.isArray(o.w) ? o.w : []).filter(x => WANTS.includes(x)), so, st: DATA.stations[o.st] ? o.st : S.station,
     h: (Array.isArray(o.h) ? o.h : []).filter(x => typeof x === 'string').slice(0, 60), t: +o.t || Date.now()
   };
-  const r = o.r, stn = DATA.stations[f.st];
-  if (r && Array.isArray(r.steps)) {
-    const steps = r.steps.filter(x => typeof x === 'string').slice(0, 40).map(x => ({ k: x[0], id: x.slice(2) })).filter(d => (d.k === 'l' ? stn.lifts : stn.pistes).some(z => z.id === d.id));
-    if (steps.length) f.r = { steps, speed: Engine.SPEED_KMH[r.speed] ? r.speed : 'medium' };
-  }
+  const r = o.r;
+  if (r && typeof r.start === 'string' && r.start.length < 120 && Engine.SPEED_KMH[r.speed] && Array.isArray(r.colors))
+    f.r = { start: r.start, end: typeof r.end === 'string' ? r.end.slice(0, 120) : '', budget: Math.min(480, Math.max(30, +r.budget || 120)), speed: r.speed, colors: r.colors.filter(c => COLORS.includes(c)), walk: r.walk !== false, variant: Math.min(50, Math.max(0, +r.variant || 0)) };
   if (Object.keys(S.friends).length >= 50 && !S.friends[f.n.toLowerCase()]) return 'Limite de 50 contacts atteinte.';
   S.friends[f.n.toLowerCase()] = f; save(); return null;
 }
@@ -377,7 +385,7 @@ function renderMeet() {
       ${f.w.length ? `<div class="mut" style="margin-top:6px">Envies : ${f.w.map(esc).join(' · ')}</div>` : ''}
       ${netLinks(f.so) ? `<div class="chips" style="margin-top:8px">${netLinks(f.so)}</div>` : ''}
       ${hn2.length ? `<div style="margin-top:8px">❤ ${hn2.map(esc).join(', ')} <button class="chip" data-action="fhearts" data-k="${esc(key)}">Ajouter à mes cœurs</button></div>` : ''}
-      <div class="row" style="margin-top:8px">${f.r ? `<button class="btn sm sec" data-action="froute" data-k="${esc(key)}">🧭 Voir son parcours</button>` : ''}<button class="btn sm ghost" data-action="fdel" data-k="${esc(key)}">Supprimer</button></div></div>`;
+      <div class="row" style="margin-top:8px">${f.r ? `<button class="btn sm sec" data-action="froute" data-k="${esc(key)}">🧭 Voir son itinéraire</button>` : ''}<button class="btn sm ghost" data-action="fdel" data-k="${esc(key)}">Supprimer</button></div></div>`;
   }).join('');
   return `<h2>Rencontres</h2>
   <div class="card"><div class="me-card"><div class="avatar">${esc((pr.pseudo || '?')[0].toUpperCase())}</div>
@@ -392,8 +400,8 @@ function renderMeet() {
     <div class="chips">${WANTS.map(w => `<button class="chip${pr.wants.includes(w) ? ' on' : ''}" data-action="want" data-w="${w}">${w}</button>`).join('')}</div>
     <h3>Mes réseaux</h3>${netRows}</div>
   <div class="card"><b>Partager avec mes amis</b>
-    <p class="mut" style="margin:4px 0 10px">Envoie ton profil, ton parcours ou tes coups de cœur par WhatsApp, SMS ou autre. Ton ami les retrouve dans SKIP.</p>
-    <div class="row" style="flex-wrap:wrap"><button class="btn sm" data-action="share" data-k="profile">📤 Mon profil</button><button class="btn sm sec" data-action="share" data-k="route">🧭 Mon parcours</button><button class="btn sm sec" data-action="share" data-k="hearts">❤ Mes coups de cœur</button></div>
+    <p class="mut" style="margin:4px 0 10px">Envoie ton profil, ton itinéraire ou tes coups de cœur par WhatsApp, SMS ou autre. Ton ami les retrouve dans SKIP.</p>
+    <div class="row" style="flex-wrap:wrap"><button class="btn sm" data-action="share" data-k="profile">📤 Mon profil</button><button class="btn sm sec" data-action="share" data-k="route">🧭 Mon itinéraire</button><button class="btn sm sec" data-action="share" data-k="hearts">❤ Mes coups de cœur</button></div>
     <div class="mut" style="margin-top:8px">❤ Mes coups de cœur : ${hn.length ? esc(hn.join(', ')) : 'aucun pour l\'instant'}</div></div>
   <h3>Mes skieurs</h3>
   ${friends || '<div class="card"><p class="mut" style="margin:0">Aucun skieur pour l\'instant. Demande à un ami de t\'envoyer son profil SKIP, puis colle son message ci-dessous.</p></div>'}
@@ -436,6 +444,7 @@ function renderAbout() {
   <h3>Données</h3>
   <div class="card"><div class="mut">${st.pistes.length} pistes et ${st.lifts.length} remontées de l'Espace Alpe d'Huez, issues du flux officiel de la station (mise à jour du ${esc(st.updated)}). Aucune note, aucun vote, aucun coup de cœur n'est inventé : tout démarre à zéro.</div>
     <p class="mut" style="margin:8px 0 0">Chiffres annoncés par le site de l'Espace Alpe d'Huez : ${st.site.km} km, ${st.site.pistes} pistes (${st.site.colors.green} vertes, ${st.site.colors.blue} bleues, ${st.site.colors.red} rouges, ${st.site.colors.black} noires), de ${st.site.min} à ${st.site.max} m. Le détail du flux donne ${['green', 'blue', 'red', 'black'].map(c => st.pistes.filter(p => p.color === c).length).join(' / ')} : l'écart par couleur vient des données de la station.</p>
+    <p class="mut" style="margin:8px 0 0">Réseau des pistes, remontées et chemins : © contributeurs OpenStreetMap (licence ODbL), rapproché des données officielles. Altitudes des jonctions : EU-DEM 25 m.</p>
     <button class="btn ghost" data-action="reset" style="margin-top:8px">Réinitialiser mes données</button></div>`;
 }
 
@@ -453,7 +462,6 @@ function render() {
   $('#view').innerHTML = { pistes: renderPistes, route: renderRoute, day: renderDay, meet: renderMeet, about: renderAbout }[S.tab]();
 }
 const updateList = () => { const l = $('#plist'); if (l) l.innerHTML = listHtml(); };
-const updateCands = () => { const l = $('#clist'); if (l) l.innerHTML = candHtml(); };
 
 document.addEventListener('click', e => {
   const tab = e.target.closest('[data-tab]');
@@ -475,16 +483,14 @@ document.addEventListener('click', e => {
     case 'validate': S.votes[d.id] = sheetVote ?? S.votes[d.id]; save(); toast('Merci ! Ta note est enregistrée.'); pisteSheet(d.id); render(); break;
     case 'heart': S.hearts = S.hearts.includes(d.id) ? S.hearts.filter(h => h !== d.id) : [...S.hearts, d.id]; save(); pisteSheet(d.id); render(); break;
     case 'skied': addLog({ type: 'piste', cands: [d.id], altFrom: pisteOf(d.id).altFrom, altTo: pisteOf(d.id).altTo, t: Date.now(), manual: true }); toast('Ajoutée à ta journée'); break;
-    case 'addstep': S.draft.push({ k: d.k, id: d.id }); save(); toast('Ajouté à ton parcours.'); if (S.tab === 'route') render(); break;
-    case 'rm': S.draft.splice(+d.i, 1); save(); render(); break;
-    case 'clear': S.draft = []; save(); render(); break;
-    case 'rspeed': S.rf.speed = d.v; save(); render(); break;
-    case 'rkind': S.rf.kind = d.v; save(); render(); break;
+    case 'rf': S.rf[d.k] = d.k === 'budget' ? +d.v : d.v; save(); render(); break;
     case 'rcolor': S.rf.colors = S.rf.colors.includes(d.c) ? S.rf.colors.filter(c => c !== d.c) : [...S.rf.colors, d.c]; save(); render(); break;
-    case 'download': S.route = { stationId: S.station, steps: S.draft.slice(), speed: S.rf.speed, savedAt: Date.now() }; save(); toast('Parcours téléchargé : utilisable sans réseau.'); render(); break;
-    case 'loadsaved': S.draft = S.route.steps.slice(); S.rf.speed = S.route.speed; save(); render(); break;
+    case 'plan': generate(!!d.next); break;
+    case 'openstep': { const s = plan.steps[+d.i]; if (s.kind === 'piste') pisteSheet(s.o); else liftSheet(s.o); break; }
+    case 'download': S.route = { stationId: S.station, plan, savedAt: Date.now() }; save(); toast('Itinéraire téléchargé : utilisable sans réseau.'); render(); break;
+    case 'loadsaved': plan = S.route.plan; render(); break;
     case 'delsaved': S.route = null; save(); render(); break;
-    case 'gstart': guide = { steps: draftSteps(), idx: 0 }; startTracking(); speak(stepText(guide.steps[0])); render(); break;
+    case 'gstart': guide = { steps: plan.steps, idx: 0 }; startTracking(); speak(stepText(guide.steps[0])); render(); break;
     case 'gnext': advanceGuide(); break;
     case 'gstop': guide = null; render(); break;
     case 'track': if (watchId !== null) stopTracking(); else startTracking(); render(); break;
@@ -505,7 +511,7 @@ document.addEventListener('click', e => {
     case 'import': { const e2 = importFriend($('#importtxt').value); if (e2) toast(e2, 4500); else { toast('Skieur ajouté !'); render(); } break; }
     case 'fdel': delete S.friends[d.k]; save(); render(); break;
     case 'fhearts': { const fr = S.friends[d.k]; S.hearts = [...new Set([...S.hearts, ...fr.h.filter(id => pisteOf(id))])]; save(); toast('Coups de cœur ajoutés.'); render(); break; }
-    case 'froute': { const fr = S.friends[d.k]; S.draft = fr.r.steps.slice(); S.rf.speed = fr.r.speed; S.tab = 'route'; save(); render(); toast('Parcours de ' + fr.n + ' chargé.'); break; }
+    case 'froute': { const fr = S.friends[d.k]; S.rf = { ...S.rf, ...fr.r }; S.tab = 'route'; generateAt(fr.r.variant || 0); toast('Itinéraire de ' + fr.n + ' chargé.'); break; }
     case 'send': { const i = $('#chatin'), v = i.value.trim(); if (!v) break;
       (S.chat[chatKey()] = S.chat[chatKey()] || []).push({ who: S.profile.pseudo || 'Skieur', lvl: S.level, status: S.profile.status, t: hhmm(Date.now()), text: v, me: true }); save(); render(); break; }
     case 'reset': if (confirm('Effacer toutes tes données SKIP ?')) { localStorage.removeItem(KEY); location.reload(); } break;
@@ -514,7 +520,6 @@ document.addEventListener('click', e => {
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'q') { S.filt.q = t.value; updateList(); }
-  else if (t.id === 'rq') { S.rf.q = t.value; updateCands(); }
   else if (t.dataset.range === 'level') { S.level = +t.value; $('#lvl').textContent = t.value; save(); updateList(); }
   else if (t.dataset.range === 'level2') { S.level = +t.value; save(); }
 });
@@ -522,14 +527,16 @@ document.addEventListener('change', e => {
   const t = e.target, b = t.dataset.bind;
   if (b === 'fit') { S.filt.fit = t.checked; save(); updateList(); }
   else if (b === 'sector') { S.filt.sector = t.value; save(); updateList(); }
-  else if (b === 'rsector') { S.rf.sector = t.value; save(); updateCands(); }
+  else if (b === 'rstart') { S.rf.start = t.value; save(); }
+  else if (b === 'rend') { S.rf.end = t.value; save(); }
+  else if (b === 'rwalk') { S.rf.walk = t.checked; save(); }
   else if (b === 'audio') { S.audio = t.checked; save(); }
   else if (t.id === 'pseudo') { S.profile.pseudo = t.value.trim().slice(0, 30); save(); }
   else if (t.dataset.range === 'level2') { render(); }
   else if (t.id === 'manual' && t.value) { const p = pisteOf(t.value); addLog({ type: 'piste', cands: [p.id], altFrom: p.altFrom, altTo: p.altTo, t: Date.now(), manual: true }); render(); }
   else if (t.id === 'simsel' && t.value) { simulateDescent(t.value); }
 });
-$('#station').addEventListener('change', e => { S.station = e.target.value; guide = null; pending = {}; trk = Engine.newTracker(); S.draft = []; save(); render(); });
+$('#station').addEventListener('change', e => { S.station = e.target.value; guide = null; pending = {}; trk = Engine.newTracker(); plan = null; save(); render(); });
 (() => { let tm; const p = $('#pocket'), go = () => { tm = setTimeout(exitPocket, 1000); }, no = () => clearTimeout(tm);
   p.addEventListener('pointerdown', go); p.addEventListener('pointerup', no); p.addEventListener('pointerleave', no); })();
 

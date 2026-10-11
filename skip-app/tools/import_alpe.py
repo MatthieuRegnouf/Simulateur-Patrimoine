@@ -28,9 +28,11 @@ def hours(el):
     p = el.find('PLAGES/PLAGE')
     return f"{p.get('heuredeb')} - {p.get('heurefin')}" if p is not None and p.get('heuredeb') else None
 
-def main():
-    raw = open(sys.argv[1], 'rb').read() if len(sys.argv) > 1 else urllib.request.urlopen(URL, timeout=60).read()
-    root = ET.fromstring(raw)
+def load_root(path=None):
+    raw = open(path, 'rb').read() if path else urllib.request.urlopen(URL, timeout=60).read()
+    return ET.fromstring(raw)
+
+def build_station(root):
     sectors = {}
     for s in root.iter('SECTEUR'):
         parts = [p.strip() for p in re.split(r'<br\s*/>', s.get('nom')) if p.strip()]
@@ -82,6 +84,11 @@ def main():
     station = {'id': 'alpe', 'name': "Espace Alpe d'Huez", 'updated': root.findtext('DATEINFO', '').strip(),
                'site': {'km': 250, 'pistes': 111, 'colors': {'green': 34, 'blue': 31, 'red': 30, 'black': 16}, 'min': 1300, 'max': 3330},
                'sectors': {s: sectors[s] for s in sorted(used, key=lambda s: sectors[s])}, 'lifts': out_l, 'pistes': out_p}
+    return station
+
+def main():
+    station = build_station(load_root(sys.argv[1] if len(sys.argv) > 1 else None))
+    out_p, out_l = station['pistes'], station['lifts']
     head = """/* Données de l'Espace Alpe d'Huez : GÉNÉRÉ par tools/import_alpe.py, ne pas modifier à la main.
    Source : flux public ATEN de l'Espace Alpe d'Huez (live.aten-altitude.com/alpehuez), repris du site skipass.alpedhuez.com.
    Contient nom, couleur, longueur et altitudes des pistes ; type, durée, altitudes et débit des remontées.
@@ -95,4 +102,5 @@ def main():
     for e in out_p: c[e['color']] = c.get(e['color'], 0) + 1
     print(len(out_p), 'pistes', c, '|', len(out_l), 'remontées |', len(station['sectors']), 'secteurs |', station['updated'])
 
-main()
+if __name__ == '__main__':
+    main()
