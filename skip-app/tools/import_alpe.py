@@ -97,7 +97,7 @@ def main():
    Les notes et coups de cœur démarrent à zéro : seule la communauté les remplit. */
 """
     js = head + 'const DATA = { stations: { alpe: ' + json.dumps(station, ensure_ascii=False, indent=1) + ' } };\nif (typeof module !== \'undefined\') module.exports = DATA;\n'
-    open('data.js', 'w', encoding='utf-8').write(js)
+    open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data.js'), 'w', encoding='utf-8').write(js)
     c = {}
     for e in out_p: c[e['color']] = c.get(e['color'], 0) + 1
     print(len(out_p), 'pistes', c, '|', len(out_l), 'remontées |', len(station['sectors']), 'secteurs |', station['updated'])
