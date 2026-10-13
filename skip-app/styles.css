@@ -84,3 +84,7 @@ svg.map{width:100%;height:auto;background:var(--card);border:1px solid var(--lin
 .num{width:30px;height:30px;border-radius:50%;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;font-size:14px}
 textarea{resize:vertical}
 a.chip{text-decoration:none;color:var(--ink)}
+
+.score.est{background:transparent;border:2px dashed currentColor;font-size:17px}.score.est small{font-size:9px;font-weight:700}
+.lvl{font-size:13px;font-weight:700}.lvl.est{font-style:italic;color:var(--mut);font-weight:600}
+.pchip{padding:3px 10px;font-size:13px}

@@ -10,7 +10,10 @@ Servie en HTTPS, l'appli s'installe sur l'écran d'accueil (Android : « Install
 
 ## Fonctionnalités
 - **Pistes et remontées** : les 111 pistes et 65 remontées de l'Espace Alpe d'Huez (nom, couleur officielle, longueur, altitudes, durée des remontées), recherche sans accent, filtre par couleur et par secteur.
-- **Notes 1–10** et **coups de cœur** : tout démarre à zéro, aucune note inventée. Niveau personnel : « à ton niveau / pour progresser / trop dur » (d'après ta note, sinon la couleur officielle).
+- **Notation** : chaque carte de piste affiche « Difficulté : 7,4/10 · 136 votes » ; sans vote, « Difficulté estimée : 6/10 » (pastille en pointillés, d'après la couleur officielle et la pente). Vote en 1 tap (échelle 1–10), conditions facultatives en un 2e tap (damée, poudreuse, transformée, dure/verglacée, bosses, peu de neige), effet immédiat sur la note. Note globale = moyenne des votes mélangée à l'estimation objective (poids de l'estimation = 8 votes). Filtres de période discrets (24 h, 3 j, 7 j, 30 j) avec tendance sur 3 jours.
+- **Caractéristiques** (bouton repliable sur la fiche) : pente moyenne et maximale, exposition, niveau technique estimé, état récent, neige habituelle (≥ 3 votes), longueur, altitudes, durée, repères de sécurité. Largeur : non fournie par la station.
+- **Sécurité et progression** : niveau personnel, badges « à ton niveau / pour progresser / trop dur », mode « 🎯 Pour moi » (pistes un cran au-dessus d'abord, trop dures masquées), avertissement de neige dure signalée.
+- **Coups de cœur**, **Pistes et remontées** : liste complète, recherche sans accent, filtres couleur et secteur.
 - **Mon itinéraire** : tu choisis le départ, l'arrivée, la durée (1 h, 1 h 30, 2 h, 3 h, 4 h), les couleurs de pistes et ta vitesse ; l'appli propose un enchaînement complet de remontées, pistes, liaisons et courts chemins à pied qui revient à l'arrivée. Carte réelle avec étapes numérotées, détail pas à pas, « autre proposition », hors ligne, guidage audio, partage.
 - **Ma journée** : le GPS suit l'altitude et reconnaît les descentes et remontées dont les altitudes correspondent ; en cas d'hésitation entre plusieurs pistes, tu choisis le soir. Mode poche (écran noir, retour vocal et vibration), vote de fin de journée, compteur de temps d'écran.
 - **Rencontres** : profil (pseudo, ski/snowboard, niveau, statut, envies), liens réels vers Instagram, Snapchat, Facebook, Strava, partage de profil / parcours / coups de cœur par message (WhatsApp, SMS…), ajout d'un ami en collant son message, chat général du jour.
@@ -36,7 +39,7 @@ python3 tools/build_graph.py --cache /chemin/cache --xml flux.xml   # réutilise
 Couverture actuelle : 98 pistes officielles sur 111 et 59 remontées sur 65 ont un tracé ; les autres (stades débutants, ascenseurs, tapis) n'y sont pas. Les liaisons sont déduites de la carte OpenStreetMap, qui n'est pas une source officielle : elles peuvent contenir des erreurs, d'où l'avertissement dans l'appli.
 
 ## Limites
-- Il manque un backend : votes partagés (la moyenne communautaire n'existe pas encore), chat commun, connexion réelle aux réseaux (OAuth) et annuaire des skieurs. Le partage se fait par message texte contenant un code `SKIP:…`.
+- Il manque un backend : la « communauté » se limite à toi et à tes contacts SKIP (les votes se partagent par message) ; moyenne et chat partagés, chat commun, connexion réelle aux réseaux (OAuth) et annuaire des skieurs. Le partage se fait par message texte contenant un code `SKIP:…`.
 - Pas de temps d'attente aux remontées ni d'état d'ouverture (hors saison, le flux ne les donne pas).
 - Pas d'état d'ouverture des pistes ni d'attente aux remontées : l'itinéraire peut inclure une piste fermée.
 - La détection GPS dépend de l'altitude fournie par le téléphone (précision limitée).

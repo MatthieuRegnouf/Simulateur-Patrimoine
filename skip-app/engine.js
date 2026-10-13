@@ -16,13 +16,12 @@ const Engine = (() => {
     return { key: 'hard', text: 'Difficile', icon: '🔴' };
   }
 
-  // Adéquation avec le niveau de l'utilisateur : sa note si elle existe, sinon la couleur officielle.
-  function fit(p, myVote, level) {
-    const lv = myVote || COLOR_LEVEL[p.color], d = lv - level;
-    const basis = myVote ? '' : ' (d\'après la couleur)';
-    if (d <= 0.5) return { key: 'ok', text: 'À ton niveau' + basis };
-    if (d <= 1.5) return { key: 'progress', text: 'Pour progresser' + basis };
-    return { key: 'hard', text: 'Trop dur pour toi' + basis };
+  // Adéquation entre la difficulté d'une piste (sa note, ou son estimation) et le niveau de l'utilisateur
+  function fit(lv, level, basis) {
+    const d = lv - level, b = basis ? ` (${basis})` : '';
+    if (d <= 0.5) return { key: 'ok', text: 'À ton niveau' + b };
+    if (d <= 1.5) return { key: 'progress', text: 'Pour progresser' + b };
+    return { key: 'hard', text: 'Trop dur pour toi' + b };
   }
 
   // Durée d'une descente : estimée d'après la longueur (null si la longueur est inconnue)

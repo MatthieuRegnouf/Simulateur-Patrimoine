@@ -11,12 +11,13 @@ const COLORS = ['green', 'blue', 'red', 'black'], RANK = { green: 0, blue: 1, re
 const defaults = () => ({
   station: 'alpe', tab: 'pistes', level: 5, audio: true,
   profile: { pseudo: '', discipline: 'ski', wants: [], status: 'slopes', socials: {} },
-  votes: {}, hearts: [], log: {}, route: null, chat: {}, screen: {}, friends: {},
-  filt: { colors: [], q: '', sector: '', sort: 'color', fit: false, open: false, view: 'pistes' },
+  votes: {}, vlog: [], hearts: [], log: {}, route: null, chat: {}, screen: {}, friends: {},
+  filt: { colors: [], q: '', sector: '', sort: 'color', fit: false, open: false, view: 'pistes', mine: false },
   rf: { start: '', end: '', budget: 120, speed: 'medium', colors: ['green', 'blue', 'red'], walk: true, variant: 0 }
 });
 let S = (() => { try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return defaults(); } })();
 S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf };
+if (S.votes && Object.keys(S.votes).length) { Object.entries(S.votes).forEach(([id, sc]) => S.vlog.push({ id, s: sc, t: Date.now(), tags: [] })); S.votes = {}; }   // ancien format
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* stockage indisponible */ } };
 
 const station = () => DATA.stations[S.station];
@@ -27,14 +28,52 @@ const colorName = c => Engine.COLOR_LABEL[c];
 const secName = id => station().sectors[id] || id;
 const alts = x => x.altFrom && x.altTo ? `${x.altFrom} → ${x.altTo} m` : '';
 const kmText = km => km ? `${String(km).replace('.', ',')} km` : '';
-const info = p => {
-  const mine = S.votes[p.id] || null;
-  return { score: mine, label: Engine.label(mine), fit: Engine.fit(p, mine, S.level), liked: S.hearts.includes(p.id) };
-};
-const scoreBubble = (s, big) => s == null ? `<div class="score none${big ? ' big' : ''}">–<small>non noté</small></div>`
-  : `<div class="score${big ? ' big' : ''}" style="background:${scoreColor(s)}">${String(s).replace('.', ',')}<small>/10</small></div>`;
+/* ---------- Notes : votes, moyennes, estimation objective ---------- */
+const TAGS = ['Damée', 'Poudreuse', 'Transformée', 'Dure / verglacée', 'Bosses', 'Peu de neige'];
+const PERIODS = [[0, 'Tout'], [1, '24 h'], [3, '3 j'], [7, '7 j'], [30, '30 j']];
+const DAY = 864e5, PRIOR = 8;   // PRIOR : poids de l'estimation objective, équivalent à 8 votes
+const PI = typeof GRAPH !== 'undefined' && GRAPH.pi ? GRAPH.pi : {};
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const r1 = x => Math.round(x * 10) / 10;
+const fmt1 = x => String(r1(x)).replace('.', ',');
+const BAND = { green: [1, 3.9], blue: [3, 5.9], red: [4.5, 8], black: [7, 10] };
+const BEAR = ['Nord', 'Nord-est', 'Est', 'Sud-est', 'Sud', 'Sud-ouest', 'Ouest', 'Nord-ouest'];
 
-let guide = null, pending = {}, sheetVote = null, netEdit = null, plan = null, planMsg = '';
+/* Niveau technique estimé (1–10) : moyenne de la couleur officielle et d'un score de pente (pente moyenne et pente maximale
+   d'un tronçon, mesurées sur les tracés et les altitudes), puis ramenée dans la fourchette de la couleur. */
+function objective(p) {
+  const base = Engine.COLOR_LEVEL[p.color], pi = PI[p.id];
+  let avg = pi ? pi[0] : null; const max = pi ? pi[1] : null;
+  if (avg == null && p.altFrom && p.altTo && p.km) avg = r1((p.altFrom - p.altTo) / (p.km * 1000) * 100);
+  const bearing = pi ? pi[2] : null;
+  let level = base, basis = 'la couleur officielle';
+  if (avg != null) { level = clamp((base + clamp(1 + (avg - 4) * 0.28 + Math.max(0, (max ?? avg) - avg) * 0.05, 1, 10)) / 2, ...BAND[p.color]); basis = 'la couleur et la pente'; }
+  return { level: r1(level), avg, max, bearing, expo: bearing == null ? null : BEAR[Math.round(bearing / 45) % 8], basis };
+}
+const myVote = id => S.vlog.find(v => v.id === id);
+function votesOf(id) {   // mon vote + ceux de mes contacts SKIP (la communauté tant qu'il n'y a pas de serveur)
+  const out = [], m = myVote(id);
+  if (m) out.push({ s: m.s, t: m.t, tags: m.tags || [] });
+  Object.values(S.friends).forEach(f => (f.v || []).forEach(v => { if (v[0] === id) out.push({ s: v[1], t: v[2], tags: (v[3] || []).map(i => TAGS[i]).filter(Boolean) }); }));
+  return out;
+}
+function agg(id, days) {
+  const min = days ? Date.now() - days * DAY : 0, vs = votesOf(id).filter(v => v.t >= min), tags = {};
+  vs.forEach(v => v.tags.forEach(t => tags[t] = (tags[t] || 0) + 1));
+  return { n: vs.length, avg: vs.length ? r1(vs.reduce((a, v) => a + v.s, 0) / vs.length) : null, tags };
+}
+function setVote(id, s, tags) { const old = myVote(id); S.vlog = S.vlog.filter(v => v.id !== id); S.vlog.push({ id, s, t: Date.now(), tags: tags ?? old?.tags ?? [] }); save(); }
+const info = p => {
+  const a = agg(p.id, 0), o = objective(p), w = a.n / (a.n + PRIOR), global = a.n ? r1(w * a.avg + (1 - w) * o.level) : null, lv = global ?? o.level;
+  return { n: a.n, avg: a.avg, global, est: o.level, obj: o, level: lv, label: Engine.label(lv), fit: Engine.fit(lv, S.level, global == null ? 'estimé' : ''), liked: S.hearts.includes(p.id), mine: myVote(p.id)?.s || null };
+};
+// Pastille : pleine si la piste a des votes, en pointillés (estimation) sinon
+const scoreBubble = (i, big) => i.global == null
+  ? `<div class="score est${big ? ' big' : ''}" style="color:${scoreColor(i.est)}">~${fmt1(i.est)}<small>estimé</small></div>`
+  : `<div class="score${big ? ' big' : ''}" style="background:${scoreColor(i.global)}">${fmt1(i.global)}<small>/10</small></div>`;
+const levelText = i => i.global == null ? `Difficulté estimée : ${fmt1(i.est)}/10` : `Difficulté : ${fmt1(i.global)}/10 · ${i.n} vote${i.n > 1 ? 's' : ''}`;
+
+let guide = null, pending = {}, netEdit = null, plan = null, planMsg = '', sheetPeriod = 0, showChars = false, sheetId = null;
 const NET = typeof GRAPH !== 'undefined' ? Engine.buildNet(GRAPH) : null;
 let watchId = null, trk = Engine.newTracker(), wakeLock = null, altWarned = false;
 
@@ -48,30 +87,37 @@ function speak(text) {
   }
   if (navigator.vibrate) navigator.vibrate(80);
 }
-function openSheet(html) { const s = $('#sheet'); s.innerHTML = `<div class="in"><button class="x" data-action="close" aria-label="Fermer">✕</button>${html}</div>`; s.hidden = false; }
-function closeSheet() { $('#sheet').hidden = true; sheetVote = null; }
+function openSheet(html) {
+  const s = $('#sheet'), top = s.hidden ? 0 : s.querySelector('.in')?.scrollTop || 0;
+  s.innerHTML = `<div class="in"><button class="x" data-action="close" aria-label="Fermer">✕</button>${html}</div>`; s.hidden = false;
+  s.querySelector('.in').scrollTop = top;
+}
+function closeSheet() { $('#sheet').hidden = true; sheetId = null; }
 
 /* ---------- Pistes et remontées ---------- */
 const norm = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
 const LIFT_ICON = { 'Téléski': '⛷', 'Tapis': '➡️', 'Ascenseur': '🛗' };
 function filteredPistes() {
   const f = S.filt, q = norm(f.q).trim();
-  const l = station().pistes.filter(p => q ? norm(p.name).includes(q) :
-    (!f.colors.length || f.colors.includes(p.color)) && (!f.sector || p.sectors.includes(f.sector)) && (!f.fit || info(p).fit.key !== 'hard'));
-  const byColor = (a, b) => RANK[a.color] - RANK[b.color] || a.name.localeCompare(b.name);
-  return l.sort(f.sort === 'hearts' ? (a, b) => (S.hearts.includes(b.id) - S.hearts.includes(a.id)) || byColor(a, b) : f.sort === 'name' ? (a, b) => a.name.localeCompare(b.name)
-    : f.sort === 'score' ? (a, b) => (S.votes[b.id] || 0) - (S.votes[a.id] || 0) || byColor(a, b) : f.sort === 'alt' ? (a, b) => (b.altFrom || 0) - (a.altFrom || 0) : byColor);
+  const l = station().pistes.map(p => ({ p, i: info(p) })).filter(({ p, i }) => q ? norm(p.name).includes(q) :
+    (!f.colors.length || f.colors.includes(p.color)) && (!f.sector || p.sectors.includes(f.sector)) && (!f.fit || i.fit.key !== 'hard') && (!f.mine || i.fit.key !== 'hard'));
+  const byColor = (a, b) => RANK[a.p.color] - RANK[b.p.color] || a.p.name.localeCompare(b.p.name);
+  const goal = S.level + 1;   // « Pour moi » : d'abord un cran au-dessus (progresser), puis ce qui est à mon niveau
+  l.sort(f.mine && !q ? (a, b) => (b.i.fit.key === 'progress') - (a.i.fit.key === 'progress') || Math.abs(a.i.level - goal) - Math.abs(b.i.level - goal)
+    : f.sort === 'hearts' ? (a, b) => (b.i.liked - a.i.liked) || byColor(a, b) : f.sort === 'name' ? (a, b) => a.p.name.localeCompare(b.p.name)
+    : f.sort === 'score' ? (a, b) => b.i.level - a.i.level || byColor(a, b) : f.sort === 'alt' ? (a, b) => (b.p.altFrom || 0) - (a.p.altFrom || 0) : byColor);
+  return l;
+}
+function pisteRow({ p, i }) {
+  return `<button class="piste" data-action="open" data-id="${p.id}">
+    <span class="sq ${p.color}" title="${colorName(p.color)}"></span>
+    <span class="sp"><b>${esc(p.name)}</b><br><span class="mut">${[`Piste ${colorName(p.color).toLowerCase()}`, kmText(p.km), alts(p)].filter(Boolean).join(' · ')}</span><br>
+      <span class="lvl${i.global == null ? ' est' : ''}">${levelText(i)}</span> <span class="fit ${i.fit.key}">${i.fit.key === 'hard' ? '⚠ trop dur' : i.fit.key === 'progress' ? '↗ pour progresser' : ''}</span></span>
+    ${scoreBubble(i)}</button>`;
 }
 function filteredLifts() {
   const f = S.filt, q = norm(f.q).trim();
   return station().lifts.filter(l => q ? norm(l.name).includes(q) : !f.sector || l.sectors.includes(f.sector)).sort((a, b) => a.name.localeCompare(b.name));
-}
-function pisteRow(p) {
-  const i = info(p);
-  return `<button class="piste" data-action="open" data-id="${p.id}">
-    <span class="sq ${p.color}" title="${colorName(p.color)}"></span>
-    <span class="sp"><b>${esc(p.name)}</b><br><span class="mut">${[`Piste ${colorName(p.color).toLowerCase()}`, kmText(p.km), alts(p)].filter(Boolean).join(' · ')}</span>${i.fit.key === 'hard' ? ' <span class="fit hard">⚠ trop dur</span>' : ''}</span>
-    ${scoreBubble(i.score)}</button>`;
 }
 function liftRow(l) {
   return `<button class="piste" data-action="openlift" data-id="${l.id}"><span class="ico">${LIFT_ICON[l.type] || '🚡'}</span>
@@ -79,7 +125,10 @@ function liftRow(l) {
 }
 function listHtml() {
   const lifts = S.filt.view === 'lifts', l = lifts ? filteredLifts() : filteredPistes();
-  return l.length ? l.map(lifts ? liftRow : pisteRow).join('') : '<p class="mut">Aucun résultat.</p>';
+  if (!l.length) return '<p class="mut">Aucun résultat.</p>';
+  if (lifts || !S.filt.mine || S.filt.q) return l.map(lifts ? liftRow : pisteRow).join('');
+  const prog = l.filter(x => x.i.fit.key === 'progress'), ok = l.filter(x => x.i.fit.key === 'ok');
+  return (prog.length ? `<h3>↗ Pour progresser</h3>${prog.map(pisteRow).join('')}` : '') + (ok.length ? `<h3>À ton niveau</h3>${ok.map(pisteRow).join('')}` : '');
 }
 function renderPistes() {
   const f = S.filt, st = station(), lifts = f.view === 'lifts';
@@ -88,40 +137,77 @@ function renderPistes() {
   <div class="seg" style="margin:10px 0"><button class="${lifts ? '' : 'on'}" data-action="view" data-v="pistes">Pistes (${st.pistes.length})</button><button class="${lifts ? 'on' : ''}" data-action="view" data-v="lifts">Remontées (${st.lifts.length})</button></div>
   ${lifts ? '' : `<div class="chips" style="margin-bottom:10px"><button class="chip${f.colors.length ? '' : ' on'}" data-action="allcolors">Toutes</button>
     ${COLORS.map(c => `<button class="chip${f.colors.includes(c) ? ' on' : ''}" data-action="color" data-c="${c}"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${colorName(c)}</button>`).join('')}
+    <button class="chip${f.mine ? ' on' : ''}" data-action="mine">🎯 Pour moi</button>
     <button class="chip${f.open ? ' on' : ''}" data-action="filters">Réglages</button></div>`}
+  ${f.mine && !lifts ? `<div class="card"><div class="mut">🎯 Pistes adaptées à ton niveau, en commençant par celles qui font progresser d'un cran. Les pistes trop dures sont masquées.</div>
+    <div class="mut" style="margin-top:6px">Mon niveau : <b id="lvl">${S.level}</b>/10</div><input type="range" min="1" max="10" step="0.5" value="${S.level}" data-range="level" aria-label="Mon niveau"></div>` : ''}
   <select class="f" data-bind="sector" aria-label="Secteur" style="margin-bottom:10px"><option value="">Tous les secteurs</option>${Object.entries(st.sectors).map(([id, n]) => `<option value="${id}" ${f.sector === id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
   ${f.open && !lifts ? `<div class="card"><div class="mut">Trier par</div>
-    <div class="seg" style="margin:6px 0 10px">${[['color', 'Couleur'], ['alt', 'Altitude'], ['hearts', '❤'], ['name', 'A-Z']].map(([k, t]) => `<button class="${f.sort === k ? 'on' : ''}" data-action="sort" data-k="${k}">${t}</button>`).join('')}</div>
+    <div class="seg" style="margin:6px 0 10px">${[['color', 'Couleur'], ['score', 'Difficulté'], ['alt', 'Altitude'], ['hearts', '❤'], ['name', 'A-Z']].map(([k, t]) => `<button class="${f.sort === k ? 'on' : ''}" data-action="sort" data-k="${k}">${t}</button>`).join('')}</div>
     <div class="mut">Mon niveau : <b id="lvl">${S.level}</b>/10</div>
     <input type="range" min="1" max="10" step="0.5" value="${S.level}" data-range="level" aria-label="Mon niveau">
     <label class="chk"><input type="checkbox" data-bind="fit" ${f.fit ? 'checked' : ''}> Masquer les pistes trop dures pour moi</label></div>` : ''}
   <div id="plist">${listHtml()}</div>
-  <p class="mut" style="margin-top:14px">Données officielles de l'Espace Alpe d'Huez (mise à jour du ${esc(st.updated)}). Personne n'a encore noté les pistes : skie, puis note pour lancer la moyenne.</p>`;
+  <p class="mut" style="margin-top:14px">Données officielles de l'Espace Alpe d'Huez (mise à jour du ${esc(st.updated)}). La difficulté « estimée » vient de la couleur officielle et de la pente ; elle est remplacée par la note des skieurs dès qu'il y a des votes.</p>`;
 }
 
-function pisteSheet(id) {
-  const p = pisteOf(id), i = info(p), mine = S.votes[id], liked = i.liked, sel = sheetVote ?? mine;
-  const cell = (k, v) => v ? `<div>${k}<b>${esc(v)}</b></div>` : '';
+function periodLine(id, i) {
+  const a = agg(id, sheetPeriod), name = PERIODS.find(x => x[0] === sheetPeriod)[1], all = agg(id, 0), rec = agg(id, 3);
+  if (!a.n) return `<span class="mut">Aucun vote${sheetPeriod ? ' sur cette période' : ''}.</span>`;
+  const top = Object.entries(a.tags).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([t, n]) => `${t.toLowerCase()} (${n})`).join(', ');
+  const trend = sheetPeriod === 0 && rec.n >= 2 && all.n - rec.n >= 2 ? (rec.avg - all.avg >= 1 ? ' · ↗ jugée plus difficile ces 3 derniers jours' : rec.avg - all.avg <= -1 ? ' · ↘ jugée plus facile ces 3 derniers jours' : '') : '';
+  return `<b>${fmt1(a.avg)}/10</b> <span class="mut">(${sheetPeriod ? name : 'toutes périodes'}) · ${a.n} vote${a.n > 1 ? 's' : ''}${top ? ' · signalé : ' + esc(top) : ''}${trend}</span>`;
+}
+function tipsFor(p, i) {
+  const o = i.obj, t = [], rec = agg(p.id, 3), hard = (rec.tags['Dure / verglacée'] || 0);
+  if (p.color === 'black') t.push('Piste noire : réservée aux skieurs confirmés.');
+  if (o.avg != null && o.avg >= 25) t.push(`Pente soutenue (${Math.round(o.avg)} % en moyenne).`);
+  if (o.max != null && o.max >= 40) t.push(`Passages très raides (jusqu'à ${o.max} % sur un tronçon).`);
+  if (p.altFrom >= 2800) t.push('Haute altitude : froid et vent plus marqués, visibilité parfois réduite.');
+  if (o.expo && /Sud/.test(o.expo)) t.push('Exposition sud : la neige se transforme plus vite l\'après-midi.');
+  if (o.expo && /Nord/.test(o.expo)) t.push('Exposition nord : neige souvent mieux conservée, mais plaques dures ou verglacées possibles.');
+  if (hard >= 2 || (rec.n >= 3 && hard / rec.n >= 0.4)) t.unshift('⚠ Neige dure ou verglacée signalée ces 3 derniers jours.');
+  return t;
+}
+function charsHtml(p, i) {
+  const o = i.obj, row = (k, v) => `<div>${k}<b>${v}</b></div>`, a3 = agg(p.id, 3), all = agg(p.id, 0);
+  const snow = all.n >= 3 ? Object.entries(all.tags).sort((x, y) => y[1] - x[1]).slice(0, 2).map(([t]) => t).join(', ') : '';   // « habituelle » : il faut au moins 3 votes
+  const recent = Object.entries(a3.tags).sort((x, y) => y[1] - x[1]).map(([t, n]) => `${t.toLowerCase()} (${n})`).join(', ');
   const times = p.km ? ['slow', 'medium', 'fast'].map(k => Engine.estMin(p, k)).join(' / ') + ' min' : '';
+  const tips = tipsFor(p, i);
+  return `<div class="data">
+    ${row('Pente moyenne', o.avg != null ? Math.round(o.avg) + ' %' : '—')}${row('Pente maximale (tronçon)', o.max != null ? o.max + ' %' : '—')}
+    ${row('Exposition', o.expo ? o.expo + (/Sud/.test(o.expo) ? ' · ensoleillée' : /Nord/.test(o.expo) ? ' · à l\'ombre' : '') : '—')}${row('Largeur', 'non fournie')}
+    ${row('Neige habituelle', esc(snow || 'pas assez de votes (3 minimum)'))}${row('Niveau technique estimé', fmt1(o.level) + '/10')}
+    ${row('État récent (3 j)', esc(recent || 'aucun signalement'))}${row('Longueur', p.km ? kmText(p.km) : '—')}
+    ${row('Altitudes', alts(p) || '—')}${row('Dénivelé', p.denivele ? p.denivele + ' m' : Engine.drop(p) && !p.official ? Engine.drop(p) + ' m' : '—')}
+    ${row('Durée estimée (lent / moyen / rapide)', times || '—')}${row('Secteur', esc(p.sectors.map(secName).join(' ; ')))}${p.hours ? row('Horaires', esc(p.hours)) : ''}</div>
+    ${tips.length ? `<div class="warn" style="background:var(--brand2);color:var(--ink)"><b>À savoir</b><br>${tips.map(t => esc(t)).join('<br>')}</div>` : ''}
+    ${p.info ? `<p style="margin:8px 0 0">${esc(p.info)}</p>` : ''}
+    ${p.official ? `<div class="warn" style="background:var(--brand2);color:var(--ink)"><b>Selon le site officiel</b><br>${p.official.map(esc).join('<br>')}</div>` : ''}
+    <div class="mut">Pente, exposition et niveau estimés d'après les tracés OpenStreetMap et un modèle d'altitude (valeurs approximatives). Largeur et état de la neige : pas fournis par la station, ils viendront des skieurs. Source : flux officiel de l'Espace Alpe d'Huez.</div>`;
+}
+function pisteSheet(id) {
+  const p = pisteOf(id), i = info(p); sheetId = id;
+  const tags = myVote(id)?.tags || [];
   openSheet(`<div class="row"><span class="sq ${p.color}" style="width:22px;height:22px"></span><h2 style="margin:0">${esc(p.name)}</h2></div>
-    <div class="mut">Piste ${colorName(p.color).toLowerCase()} officielle</div>
-    <div class="row" style="margin:12px 0">${scoreBubble(i.score, true)}<div>
-      ${i.score == null ? '<b>Pas encore noté</b><br><span class="mut">Personne n\'a voté. Sois le premier à la noter !</span>'
-        : `<span class="lab ${i.label.key}">${i.label.icon} Piste ${i.label.text.toUpperCase()}</span><br><span class="mut">Ta note. La moyenne de la communauté apparaîtra quand l'appli sera connectée à un serveur.</span>`}</div></div>
+    <div class="mut">Piste ${colorName(p.color).toLowerCase()} · ${[kmText(p.km), alts(p)].filter(Boolean).join(' · ')}</div>
+    <div class="row" style="margin:12px 0">${scoreBubble(i, true)}<div>
+      <span class="lab ${i.label.key}">${i.label.icon} ${i.label.text.toUpperCase()}${i.global == null ? ' (estimé)' : ''}</span><br>
+      <b>${i.global == null ? `Difficulté estimée : ${fmt1(i.est)}/10` : `Note moyenne : ${fmt1(i.avg)}/10`}</b><br>
+      <span class="mut">${i.global == null ? `Aucun vote pour l'instant. Estimation d'après ${esc(i.obj.basis)}.` : `Basée sur ${i.n} vote${i.n > 1 ? 's' : ''} · difficulté globale ${fmt1(i.global)}/10 (avec l'estimation objective ${fmt1(i.est)}/10)`}</span></div></div>
     <div class="fit ${i.fit.key}" style="margin-bottom:8px">${i.fit.text} (niveau ${S.level}/10)</div>
     ${i.fit.key === 'hard' ? '<div class="warn">⚠ Cette piste est au-dessus de ton niveau. Choisis plutôt une piste plus facile.</div>' : ''}
-    ${p.info ? `<p style="margin:0 0 8px">${esc(p.info)}</p>` : ''}
-    ${p.official ? `<div class="warn" style="background:var(--brand2);color:var(--ink)"><b>Selon le site officiel</b><br>${p.official.map(esc).join('<br>')}</div>` : ''}
-    <div class="data">${cell('Longueur', kmText(p.km))}${cell('Altitudes', alts(p))}${cell('Dénivelé', p.denivele ? p.denivele + ' m' : !p.official && Engine.drop(p) ? Engine.drop(p) + ' m' : '')}
-      ${cell('Horaires', p.hours)}${cell('Durée estimée lent / moyen / rapide', times)}${cell('Secteur', p.sectors.map(secName).join(' ; '))}</div>
-    <div class="mut">${times ? 'Durée estimée d\'après la longueur (hypothèse de vitesse). ' : ''}Source : flux officiel de l'Espace Alpe d'Huez.</div>
-    <h3>${mine ? 'Ta note' : 'Donne ta note'}</h3><div class="mut">1 = très facile · 10 = très difficile</div>
-    <div class="rate" data-rate="${id}">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button style="background:${scoreColor(n)}" class="${sel === n ? 'on' : ''}" data-action="pick" data-n="${n}">${n}</button>`).join('')}</div>
-    <button class="btn" data-action="validate" data-id="${id}" ${sel ? '' : 'disabled'}>${mine ? 'Modifier ma note' : 'Valider ma note'}</button>
-    <h3>Coup de cœur</h3>
-    <button class="heart${liked ? ' on' : ''}" data-action="heart" data-id="${id}">${liked ? '❤️ Dans mes coups de cœur' : '🤍 Ajouter aux coups de cœur'}</button>
-    <div class="mut" style="margin-top:4px">Le nombre de skieurs qui l'ont adorée apparaîtra avec le serveur.</div>
-    <div style="margin-top:12px"><button class="btn sec" data-action="skied" data-id="${id}">✅ Skiée aujourd'hui</button></div>`);
+    ${tipsFor(p, i)[0]?.startsWith('⚠') ? `<div class="warn">${esc(tipsFor(p, i)[0])}</div>` : ''}
+    <h3 style="margin-top:6px">${i.mine ? 'Ta note : ' + i.mine + '/10' : 'Donne ta note en 1 tap'}</h3><div class="mut">1 = très facile · 10 = très difficile</div>
+    <div class="rate" data-rate="${id}">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button style="background:${scoreColor(n)}" class="${i.mine === n ? 'on' : ''}" data-action="rate" data-id="${id}" data-n="${n}" aria-label="Note ${n} sur 10">${n}</button>`).join('')}</div>
+    ${i.mine ? `<div class="mut">Conditions aujourd'hui ? (facultatif)</div><div class="chips" style="margin:6px 0">${TAGS.map((t, k) => `<button class="chip${tags.includes(t) ? ' on' : ''}" data-action="vtag" data-id="${id}" data-t="${k}">${t}</button>`).join('')}</div>
+      <button class="chip" data-action="unrate" data-id="${id}">Retirer ma note</button>` : ''}
+    <div class="row" style="margin:14px 0 4px;gap:6px"><span class="mut">Période :</span>${PERIODS.map(([d, t]) => `<button class="chip pchip${sheetPeriod === d ? ' on' : ''}" data-action="period" data-d="${d}">${t}</button>`).join('')}</div>
+    <div style="margin-bottom:12px">${periodLine(id, i)}</div>
+    <div class="row"><button class="heart${i.liked ? ' on' : ''}" data-action="heart" data-id="${id}">${i.liked ? '❤️ Coup de cœur' : '🤍 Coup de cœur'}</button><button class="btn sec" data-action="skied" data-id="${id}">✅ Skiée</button></div>
+    <button class="btn ghost" data-action="chars" style="margin-top:12px">${showChars ? '▾' : '▸'} Caractéristiques</button>
+    ${showChars ? `<div style="margin-top:10px">${charsHtml(p, i)}</div>` : ''}`);
 }
 function liftSheet(id) {
   const l = liftOf(id), cell = (k, v) => v ? `<div>${k}<b>${esc(v)}</b></div>` : '';
@@ -287,7 +373,7 @@ function renderDay() {
     <div class="row" style="margin-top:10px"><select class="f" id="manual" style="flex:1"><option value="">Ajouter une piste à la main…</option>${st.pistes.map(p => `<option value="${p.id}">${esc(p.name)} (${colorName(p.color).toLowerCase()})</option>`).join('')}</select></div>
     <div class="row" style="margin-top:8px"><select class="f" id="simsel" style="flex:1"><option value="">Tester la détection avec…</option>${st.pistes.filter(p => p.altFrom && p.altTo).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div></div>
   <h3>⭐ Noter mes pistes</h3>
-  ${pistes.length ? `<div class="card">${pistes.map(id => { const p = pisteOf(id), cur = pending[id] ?? S.votes[id]; return `<div style="margin-bottom:12px"><div class="row"><span class="sq ${p.color}"></span><b class="sp">${esc(p.name)}</b></div>
+  ${pistes.length ? `<div class="card">${pistes.map(id => { const p = pisteOf(id), cur = pending[id] ?? myVote(id)?.s; return `<div style="margin-bottom:12px"><div class="row"><span class="sq ${p.color}"></span><b class="sp">${esc(p.name)}</b></div>
       <div class="rate mini">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button style="background:${scoreColor(n)}" class="${cur === n ? 'on' : ''}" data-action="pend" data-id="${id}" data-n="${n}">${n}</button>`).join('')}</div></div>`; }).join('')}
     <button class="btn" data-action="sendvotes" ${nPending ? '' : 'disabled'}>Enregistrer mes ${nPending} note(s)</button></div>` : '<p class="mut">Ski quelques pistes, elles apparaîtront ici pour un vote de fin de journée.</p>'}`;
 }
@@ -332,7 +418,8 @@ const b64d = c => JSON.parse(decodeURIComponent(escape(atob(c.replace(/-/g, '+')
 function sharePayload(kind) {
   const pr = S.profile;
   const f = S.rf, r = kind === 'route' && plan ? { start: starts().find(p => p.i === plan.opt.start)?.name, end: plan.opt.end !== plan.opt.start ? starts().find(p => p.i === plan.opt.end)?.name : '', budget: plan.opt.budget, speed: plan.opt.speed, colors: plan.opt.colors, walk: plan.opt.walk, variant: plan.opt.variant } : null;
-  return { v: 2, n: pr.pseudo || 'Skieur', l: S.level, d: pr.discipline, s: pr.status, w: pr.wants, so: pr.socials, st: S.station, h: S.hearts, r, t: Date.now() };
+  return { v: 2, n: pr.pseudo || 'Skieur', l: S.level, d: pr.discipline, s: pr.status, w: pr.wants, so: pr.socials, st: S.station, h: S.hearts, r, t: Date.now(),
+    v: S.vlog.slice(-80).map(v => [v.id, v.s, v.t, (v.tags || []).map(t => TAGS.indexOf(t)).filter(i => i >= 0)]) };
 }
 function shareText(kind) {
   const pl = sharePayload(kind), hn = heartNames(S.hearts);
@@ -363,6 +450,8 @@ function importFriend(raw) {
     w: (Array.isArray(o.w) ? o.w : []).filter(x => WANTS.includes(x)), so, st: DATA.stations[o.st] ? o.st : S.station,
     h: (Array.isArray(o.h) ? o.h : []).filter(x => typeof x === 'string').slice(0, 60), t: +o.t || Date.now()
   };
+  if (Array.isArray(o.v)) f.v = o.v.slice(0, 100).filter(v => Array.isArray(v) && typeof v[0] === 'string' && pisteOf(v[0]) && Number.isInteger(v[1]) && v[1] >= 1 && v[1] <= 10 && Number.isFinite(v[2]) && v[2] > 1.6e12 && v[2] < Date.now() + DAY)
+    .map(v => [v[0], v[1], v[2], (Array.isArray(v[3]) ? v[3] : []).filter(i => Number.isInteger(i) && i >= 0 && i < TAGS.length)]);
   const r = o.r;
   if (r && typeof r.start === 'string' && r.start.length < 120 && Engine.SPEED_KMH[r.speed] && Array.isArray(r.colors))
     f.r = { start: r.start, end: typeof r.end === 'string' ? r.end.slice(0, 120) : '', budget: Math.min(480, Math.max(30, +r.budget || 120)), speed: r.speed, colors: r.colors.filter(c => COLORS.includes(c)), walk: r.walk !== false, variant: Math.min(50, Math.max(0, +r.variant || 0)) };
@@ -381,7 +470,7 @@ function renderMeet() {
   const friends = Object.entries(S.friends).sort((a, b) => b[1].t - a[1].t).map(([key, f]) => {
     const stn = DATA.stations[f.st] || station(), hn2 = stn.pistes.filter(p => f.h.includes(p.id)).map(p => p.name);
     return `<div class="card"><div class="me-card"><div class="avatar">${esc(f.n[0].toUpperCase())}</div><div class="sp"><b>${esc(f.n)}</b> <span class="mut">· ${f.d === 'snowboard' ? 'snowboard' : 'ski'} · niveau ${f.l}/10</span><br>
-      <span class="badge">${STATUSES[f.s]}</span> <span class="mut">mis à jour le ${new Date(f.t).toLocaleDateString('fr-FR')}</span></div></div>
+      <span class="badge">${STATUSES[f.s]}</span> <span class="mut">mis à jour le ${new Date(f.t).toLocaleDateString('fr-FR')}${(f.v || []).length ? ' · ' + f.v.length + ' note(s) partagée(s)' : ''}</span></div></div>
       ${f.w.length ? `<div class="mut" style="margin-top:6px">Envies : ${f.w.map(esc).join(' · ')}</div>` : ''}
       ${netLinks(f.so) ? `<div class="chips" style="margin-top:8px">${netLinks(f.so)}</div>` : ''}
       ${hn2.length ? `<div style="margin-top:8px">❤ ${hn2.map(esc).join(', ')} <button class="chip" data-action="fhearts" data-k="${esc(key)}">Ajouter à mes cœurs</button></div>` : ''}
@@ -472,15 +561,20 @@ document.addEventListener('click', e => {
   switch (d.action) {
     case 'sos': if (confirm('Appeler le 112 (urgences) ?')) location.href = 'tel:112'; break;
     case 'close': closeSheet(); break;
-    case 'open': sheetVote = null; pisteSheet(d.id); break;
+    case 'open': sheetPeriod = 0; showChars = false; pisteSheet(d.id); break;
     case 'openlift': liftSheet(d.id); break;
     case 'view': f.view = d.v; save(); render(); break;
     case 'allcolors': f.colors = []; save(); render(); break;
     case 'color': f.colors = f.colors.includes(d.c) ? f.colors.filter(c => c !== d.c) : [...f.colors, d.c]; save(); render(); break;
     case 'sort': f.sort = d.k; save(); render(); break;
     case 'filters': f.open = !f.open; save(); render(); break;
-    case 'pick': sheetVote = +d.n; pisteSheet(el.closest('[data-rate]').dataset.rate); break;
-    case 'validate': S.votes[d.id] = sheetVote ?? S.votes[d.id]; save(); toast('Merci ! Ta note est enregistrée.'); pisteSheet(d.id); render(); break;
+    case 'rate': { const before = info(pisteOf(d.id)).level; setVote(d.id, +d.n); const after = info(pisteOf(d.id)).level;
+      toast(`Note enregistrée : ${d.n}/10. Difficulté de la piste : ${fmt1(before)} → ${fmt1(after)}/10.`); pisteSheet(d.id); updateList(); break; }
+    case 'vtag': { const m = myVote(d.id), t = TAGS[+d.t]; setVote(d.id, m.s, m.tags?.includes(t) ? m.tags.filter(x => x !== t) : [...(m.tags || []), t]); pisteSheet(d.id); break; }
+    case 'unrate': S.vlog = S.vlog.filter(v => v.id !== d.id); save(); pisteSheet(d.id); updateList(); break;
+    case 'period': sheetPeriod = +d.d; pisteSheet(sheetId); break;
+    case 'chars': showChars = !showChars; pisteSheet(sheetId); break;
+    case 'mine': f.mine = !f.mine; save(); render(); break;
     case 'heart': S.hearts = S.hearts.includes(d.id) ? S.hearts.filter(h => h !== d.id) : [...S.hearts, d.id]; save(); pisteSheet(d.id); render(); break;
     case 'skied': addLog({ type: 'piste', cands: [d.id], altFrom: pisteOf(d.id).altFrom, altTo: pisteOf(d.id).altTo, t: Date.now(), manual: true }); toast('Ajoutée à ta journée'); break;
     case 'rf': S.rf[d.k] = d.k === 'budget' ? +d.v : d.v; save(); render(); break;
@@ -497,7 +591,7 @@ document.addEventListener('click', e => {
     case 'pocket': enterPocket(); break;
     case 'resolve': { const l = S.log[todayKey()].filter(x => x.stationId === S.station)[+d.k]; l.pick = d.id; save(); render(); break; }
     case 'pend': pending[d.id] = +d.n; render(); break;
-    case 'sendvotes': Object.entries(pending).forEach(([id, n]) => S.votes[id] = n); toast(`${Object.keys(pending).length} note(s) enregistrée(s). Merci !`); pending = {}; save(); render(); break;
+    case 'sendvotes': Object.entries(pending).forEach(([id, n]) => setVote(id, n)); toast(`${Object.keys(pending).length} note(s) enregistrée(s). Merci !`); pending = {}; save(); render(); break;
     case 'want': S.profile.wants = S.profile.wants.includes(d.w) ? S.profile.wants.filter(w => w !== d.w) : [...S.profile.wants, d.w]; save(); render(); break;
     case 'status': S.profile.status = d.s; save(); render(); break;
     case 'disc': S.profile.discipline = d.k; save(); render(); break;

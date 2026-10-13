@@ -258,6 +258,24 @@ def main():
             if e1.get('o') != e2.get('o'): m['o'] = e1.get('o') or e2.get('o')
             edges[l[0]] = m; edges[l[1]] = None; edges = [e for e in edges if e]; merged = True; break
 
+    # 6c. caractéristiques objectives par piste officielle, calculées sur les tracés et les altitudes (EU-DEM)
+    #     [pente moyenne %, pente maximale d'un tronçon %, orientation de la descente (degrés, 0 = nord), longueur tracée (m)]
+    pi_src = {}
+    for e in edges:
+        if e['k'] == 'piste' and e.get('o'): pi_src.setdefault(e['o'], []).append(e)
+    pinfo = {}
+    for oid, es in pi_src.items():
+        L = drop = mx = vx = vy = 0
+        for e in es:
+            a, b = nodes[e['a']], nodes[e['b']]; d = a[2] - b[2]; m = e['m']
+            if not a[2] or not b[2]: continue
+            L += m; drop += max(0, d)
+            if m >= 60: mx = max(mx, d / m * 100)
+            br = math.atan2((b[1] - a[1]) * math.cos(math.radians(a[0])), b[0] - a[0])
+            vx += m * math.sin(br); vy += m * math.cos(br)
+        if L >= 80:
+            pinfo[oid] = [round(drop / L * 100, 1), round(mx), round((math.degrees(math.atan2(vx, vy)) + 360) % 360), round(L)]
+
     # 6b. noms des points : arrivée/départ des remontées, fin de piste
     for e in edges:
         a, b = nodes[e['a']], nodes[e['b']]
@@ -276,7 +294,7 @@ def main():
     print(f"pistes officielles couvertes : {len(got_p)}/{len(official['pistes'])} | remontées : {len(got_l)}/{len(official['lifts'])}")
     miss_p = [p['name'] for p in official['pistes'] if p['id'] not in got_p]; miss_l = [l['name'] for l in official['lifts'] if l['id'] not in got_l]
     print('pistes sans tracé :', miss_p); print('remontées sans tracé :', miss_l)
-    graph = {'osm': stamp[:10], 'nodes': nodes, 'edges': edges, 'missing': {'pistes': miss_p, 'lifts': miss_l}}
+    graph = {'osm': stamp[:10], 'nodes': nodes, 'edges': edges, 'pi': pinfo, 'missing': {'pistes': miss_p, 'lifts': miss_l}}
     head = ("/* Réseau pistes / remontées / liaisons / chemins à pied : GÉNÉRÉ par tools/build_graph.py.\n"
             "   Tracés et jonctions : © contributeurs OpenStreetMap (ODbL). Noms, couleurs, durées : flux officiel Espace Alpe d'Huez.\n"
             "   Altitudes des jonctions : EU-DEM 25 m via OpenTopoData. Liaisons : déduites des tracés, à vérifier sur le plan officiel. */\n")
