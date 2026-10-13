@@ -32,3 +32,12 @@ Chaque ligne indique ce qui a été **réellement ouvert et lu** pendant le dév
   "lifts": { "l-pic-blanc-1-et-2": { "holiday": { "9-11": 25, "11-13": 12, "13-17": 18 }, "offpeak": { "9-11": 8, "11-13": 3, "13-17": 6 } } } }
 ```
 Les identifiants de remontées sont ceux de `data.js`. L'appli affiche alors « moyenne historique (vacances scolaires / hors vacances, créneau) » avec la source.
+
+## Fond de carte, navigation et hors ligne
+
+- **Fond de carte** : `basemap/alpe.pmtiles` (≈ 5,4 Mo), extrait de la zone d'Alpe d'Huez (5,98–6,22 °E, 45,02–45,21 °N, zoom ≤ 15) de la construction quotidienne **Protomaps** (données © contributeurs OpenStreetMap, licence ODbL ; date des données lue dans le fichier et affichée dans l'appli). Régénération : `sh tools/build_basemap.sh`. La mention « © OpenStreetMap · Protomaps » est affichée sur chaque carte.
+- **Pourquoi pas les tuiles openstreetmap.org** : leur règlement d'usage interdit le téléchargement en masse et le stockage pour usage hors ligne. Un fichier unique sous licence ODbL, servi par l'appli elle-même, n'a pas cette restriction. Aucun serveur de tuiles tiers n'est appelé.
+- **Lecteur** : `vendor/pmtiles.js` (bibliothèque PMTiles de Protomaps, BSD-3-Clause) ; décodeur de tuiles vectorielles `mvt.js` et rendu Canvas `map.js` écrits pour l'appli.
+- **Position** : API de géolocalisation du navigateur (GPS du téléphone, utilisable sans réseau). Aucune donnée de position n'est envoyée nulle part.
+- **Ce qui est « direct » ou non** : hors ligne, ouverture et météo sont des instantanés datés, jamais présentés comme du direct ; les attentes sont des estimations.
+- **Limites connues** : tracés OpenStreetMap simplifiés à 6 m (graph.js) ; 98/111 pistes et 59/65 remontées ont un tracé ; liaisons parfois approximatives ; un recalcul hors ligne exige d'être à moins de 150 m d'un point connu du réseau et utilise les fermetures enregistrées au téléchargement.

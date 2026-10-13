@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import import_alpe
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+GEOM_EPS = 6   # simplification des tracés (m) : assez fine pour suivre une piste à pied/à ski sans alourdir graph.js
 # Zone interrogée, en deux morceaux (le serveur Overpass refuse les requêtes trop grosses) : sud, ouest, nord, est
 BBOXES = [(45.02, 5.98, 45.15, 6.22), (45.15, 5.98, 45.21, 6.22)]
 MIRRORS = ['https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']
@@ -223,7 +224,7 @@ def main():
         if k in ('piste', 'lift') and a0 is not None and a1 is not None and abs(a0 - a1) > 20 and ((a0 < a1) if k == 'piste' else (a0 > a1)):
             ns, pts = ns[::-1], pts[::-1]; flipped += 1
         o = s['off']; name = o['name'] if o else (t.get('piste:name') or t.get('name') or '')
-        e = {'k': k, 'a': node(ns[0]), 'b': node(ns[-1]), 'n': name, 'm': round(s['L']), 'g': encode(rdp(pts, 14))}
+        e = {'k': k, 'a': node(ns[0]), 'b': node(ns[-1]), 'n': name, 'm': round(s['L']), 'g': encode(rdp(pts, GEOM_EPS))}
         if k == 'piste': e['c'] = o['color'] if o else DIFF_COLOR.get(t.get('piste:difficulty'), 'blue')
         if k == 'lift':
             tot = lens.get(('lift', o['id']), 0) if o else 0
@@ -235,7 +236,7 @@ def main():
         if t.get('piste:oneway') == 'no' and k == 'link': e['bi'] = 1
         edges.append(e)
     for (u, v), (d, geom) in links.items():
-        edges.append({'k': 'walk', 'a': node(u), 'b': node(v), 'n': '', 'm': round(d), 'g': encode(rdp(geom, 14))})
+        edges.append({'k': 'walk', 'a': node(u), 'b': node(v), 'n': '', 'm': round(d), 'g': encode(rdp(geom, GEOM_EPS))})
 
     # 6a. fusion des tronçons en chaîne : un nœud touché par exactement deux arêtes de même nature (a->x, x->b) disparaît
     def decode(g):
@@ -253,7 +254,7 @@ def main():
             if e1['b'] != x or e2['a'] != x or e1['a'] == e2['b']: continue
             if e1['k'] != e2['k'] or e1['k'] in ('walk', 'link') or e1.get('c') != e2.get('c') or (e1['n'] != e2['n'] and e1['n'] and e2['n']): continue
             m = dict(e1); m['b'] = e2['b']; m['m'] = e1['m'] + e2['m']; m['n'] = e1['n'] or e2['n']
-            m['g'] = encode(rdp(decode(e1['g']) + decode(e2['g'])[1:], 14))
+            m['g'] = encode(rdp(decode(e1['g']) + decode(e2['g'])[1:], GEOM_EPS))
             if 't' in e1: m['t'] = round(e1['t'] + e2['t'], 1)
             if e1.get('o') != e2.get('o'): m['o'] = e1.get('o') or e2.get('o')
             edges[l[0]] = m; edges[l[1]] = None; edges = [e for e in edges if e]; merged = True; break

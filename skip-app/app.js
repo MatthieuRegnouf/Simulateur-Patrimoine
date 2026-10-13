@@ -9,7 +9,7 @@ const fmtMin = m => `${Math.floor(m / 60)}h${String(Math.round(m % 60)).padStart
 const COLORS = ['green', 'blue', 'red', 'black'], RANK = { green: 0, blue: 1, red: 2, black: 3 };
 
 const defaults = () => ({
-  station: 'alpe', tab: 'pistes', level: 5, audio: true,
+  station: 'alpe', tab: 'pistes', level: 5, levelSet: false, audio: true,
   profile: { pseudo: '', discipline: 'ski', wants: [], status: 'slopes', socials: {} },
   votes: {}, vlog: [], hearts: [], log: {}, route: null, chat: {}, screen: {}, friends: {},
   filt: { colors: [], q: '', sector: '', sort: 'color', fit: false, open: false, view: 'pistes', mine: false },
@@ -18,6 +18,7 @@ const defaults = () => ({
 });
 let S = (() => { try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return defaults(); } })();
 S.notif = { ...defaults().notif, ...S.notif }; S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf };
+if (!S.levelSet && S.level !== 5) S.levelSet = true;   // un niveau déjà modifié par l'utilisateur compte comme renseigné
 if (S.votes && Object.keys(S.votes).length) { Object.entries(S.votes).forEach(([id, sc]) => S.vlog.push({ id, s: sc, t: Date.now(), tags: [] })); S.votes = {}; }   // ancien format
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* stockage indisponible */ } };
 
@@ -287,6 +288,7 @@ function explain(pl, ctx) {
   const why = [], lim = [], o = pl.opt, t = pl.times, ps = pl.steps.filter(x => x.kind === 'piste' && x.o && pisteOf(x.o));
   if (o.mode === 'felt') why.push(`Elle correspond à la difficulté que tu as choisie (niveau ${o.loL} à ${o.hiL} sur 5, ${Engine.LEVELS[o.loL - 1].label.toLowerCase()} à ${Engine.LEVELS[o.hiL - 1].label.toLowerCase()}), d'après les votes des skieurs complétés par la couleur officielle et la pente. Ton niveau déclaré : ${Engine.levelOf(S.level).n}/5.`);
   else why.push(`Elle respecte les couleurs choisies (jamais plus difficile que ${colorName(['black', 'red', 'blue', 'green'].find(c => o.colors.includes(c)) || 'green').toLowerCase()}).`);
+  if (o.profile) why.unshift(`Calculée avec ton profil${o.profile.adjusted ? ' (ajusté pour ce trajet, profil inchangé)' : ''} : ${o.profile.used.join(' ; ')}.${o.profile.ignored.length ? ' Non pris en compte : ' + o.profile.ignored.join(', ') + '.' : ''}`);
   const hearts = [...new Set(ps.filter(x => S.hearts.includes(x.o)).map(x => pisteOf(x.o).name))];
   if (hearts.length) why.push(`Elle passe par ${hearts.length} de tes coups de cœur : ${hearts.slice(0, 4).join(', ')}.`);
   if (t.waitKnown) { const srcs = [...new Set(pl.steps.filter(x => x.wait).map(x => ({ live: 'exploitant', report: 'signalements', history: 'moyenne historique', estimate: 'estimation générique' })[x.wait.src]))]; why.push(`Les attentes connues sont prises en compte pour ${t.waitKnown} remontée${t.waitKnown > 1 ? 's' : ''} sur ${t.lifts} (${srcs.join(', ')}) : elle évite les remontées les plus lentes.`); }
@@ -347,24 +349,6 @@ function stepText(s) {
   if (s.kind === 'walk') return `Marchez ${mText(s.m)} en chaussures de ski, environ ${s.min} minutes, jusqu'à ${s.toName}.`;
   return `Liaison à ski, ${mText(s.m)}, jusqu'à ${s.toName}.`;
 }
-function mapSvg(pl) {
-  const W = 340, H = 340, pts = pl.steps.flatMap(s => s.coords);
-  let la0 = Math.min(...pts.map(p => p[0])), la1 = Math.max(...pts.map(p => p[0])), lo0 = Math.min(...pts.map(p => p[1])), lo1 = Math.max(...pts.map(p => p[1]));
-  const k = Math.cos((la0 + la1) / 2 * Math.PI / 180), padLa = (la1 - la0) * 0.08 + 0.0008, padLo = (lo1 - lo0) * 0.08 + 0.001;
-  la0 -= padLa; la1 += padLa; lo0 -= padLo; lo1 += padLo;
-  const sc = Math.min((W - 16) / ((lo1 - lo0) * k), (H - 16) / (la1 - la0)), ox = (W - (lo1 - lo0) * k * sc) / 2, oy = (H - (la1 - la0) * sc) / 2;
-  const X = lo => ox + (lo - lo0) * k * sc, Y = la => oy + (la1 - la) * sc;
-  const path = c => 'M' + c.map(p => X(p[1]).toFixed(1) + ' ' + Y(p[0]).toFixed(1)).join('L');
-  const used = new Set(pl.steps.flatMap(s => s.edges));
-  const bg = NET.edges.filter(e => !used.has(e.id)).map(e => { const g = NET.geom(e), p = g[0]; return p[0] > la0 && p[0] < la1 && p[1] > lo0 && p[1] < lo1 ? `<path d="${path(g)}" fill="none" style="stroke:${e.k === 'piste' ? 'var(--' + e.c + ')' : 'var(--mut)'}" stroke-opacity=".28" stroke-width="1.2"/>` : ''; }).join('');
-  const line = pl.steps.map(s => `<path d="${path(s.coords)}" fill="none" style="stroke:${s.kind === 'piste' ? 'var(--' + s.color + ')' : s.kind === 'lift' ? '#3d4660' : '#a0702a'}" stroke-width="${s.kind === 'piste' ? 4 : 3}" stroke-linecap="round" stroke-linejoin="round" ${s.kind === 'lift' ? 'stroke-dasharray="7 4"' : s.kind === 'walk' ? 'stroke-dasharray="2 4"' : ''}/>`).join('');
-  const badge = (s, i) => { const c = s.coords[Math.floor(s.coords.length / 2)], col = s.kind === 'piste' ? 'var(--' + s.color + ')' : s.kind === 'lift' ? '#3d4660' : '#a0702a';
-    return `<circle cx="${X(c[1]).toFixed(1)}" cy="${Y(c[0]).toFixed(1)}" r="8.5" style="fill:${col}" stroke="#fff" stroke-width="1.5"/><text x="${X(c[1]).toFixed(1)}" y="${(Y(c[0]) + 3.5).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="800" fill="#fff">${i + 1}</text>`; };
-  const f = pl.steps[0].coords[0], e = pl.steps[pl.steps.length - 1].coords.slice(-1)[0];
-  const flag = (p, t, c) => `<circle cx="${X(p[1]).toFixed(1)}" cy="${Y(p[0]).toFixed(1)}" r="6" style="fill:${c}" stroke="#fff" stroke-width="2"/><text x="${(X(p[1]) + 9).toFixed(1)}" y="${(Y(p[0]) - 7).toFixed(1)}" font-size="10" font-weight="800" style="fill:var(--ink)" stroke="var(--card)" stroke-width="3" paint-order="stroke">${t}</text>`;
-  return `<svg class="map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Carte de l'itinéraire">${bg}${line}${pl.steps.map(badge).join('')}${Math.abs(f[0] - e[0]) + Math.abs(f[1] - e[1]) < 0.0004 ? flag(f, 'DÉPART · ARRIVÉE', '#0b5fff') : flag(f, 'DÉPART', '#1fb04a') + flag(e, 'ARRIVÉE', '#0b5fff')}</svg>
-    <div class="mut" style="margin-top:6px">Trait plein = piste (couleur officielle) · pointillés longs = remontée · pointillés courts = marche · fond clair = autres pistes. Tracés © contributeurs OpenStreetMap.</div>`;
-}
 function feltLine(o) {
   const p = o && pisteOf(o); if (!p) return 'Piste non officielle : difficulté inconnue';
   const i = info(p), rel = Engine.reliability(i.n), lvl = Engine.levelOf(i.level);
@@ -388,16 +372,16 @@ function stepTimes(s) {
   return `${s.kind === 'walk' ? 'Marche' : 'Liaison'} : ≈ ${s.min} min (estimée) · ${mText(s.m)}`;
 }
 function stepsHtml(pl) {
-  return pl.steps.map((s, i) => {
+  return `<div id="stepslist">` + pl.steps.map((s, i) => {
     const col = s.kind === 'piste' ? `var(--${s.color})` : s.kind === 'lift' ? '#3d4660' : '#a0702a';
     const head = s.kind === 'lift' ? `🚡 ${esc(liftType(s))} · ${esc(s.name)}` : s.kind === 'piste' ? `Piste ${colorName(s.color).toLowerCase()} · ${esc(stepName(s))}` : s.kind === 'walk' ? '🚶 À pied (chaussures de ski)' : '↝ Liaison à ski';
     const info = (s.o && (s.kind === 'piste' ? pisteOf(s.o) : liftOf(s.o))) ? `<button class="btn sm ghost" data-action="openstep" data-i="${i}" aria-label="Détails">ℹ︎</button>` : '';
-    return `<div class="step"><div class="num" style="background:${col}">${i + 1}</div><div class="sp"><b>${head}</b>
+    return `<div class="step${selStep === i ? ' sel' : ''}" data-action="selstep" data-i="${i}"><div class="num" style="background:${col}">${i + 1}</div><div class="sp"><b>${head}</b>
       ${s.kind === 'piste' ? `<span class="mut" style="display:block"><span class="sq ${s.color}" style="display:inline-block;vertical-align:-2px"></span> Couleur officielle : ${colorName(s.color).toLowerCase()} · ${esc(feltLine(s.o))}</span>` : ''}
       <span class="mut" style="display:block">${stepTimes(s)}</span>
       ${s.kind === 'lift' && s.o ? `<span class="mut" style="display:block">${esc(stateText(liveItem('lift', s.o)))}${liveItem('lift', s.o) ? ' · ' + esc(liveTag()) : ''}</span>` : ''}
       <div class="mut" style="margin-top:4px;border-left:3px solid var(--line);padding-left:8px">${guidance(pl, i).map(esc).join('<br>')}</div></div>${info}</div>`;
-  }).join('') + `<div class="step"><div class="num" style="background:var(--brand)">🏁</div><div class="sp"><b>Arrivée</b><br><span class="mut">${esc(pl.steps[pl.steps.length - 1].toName)}</span></div></div>`;
+  }).join('') + `<div class="step"><div class="num" style="background:var(--brand)">🏁</div><div class="sp"><b>Arrivée</b><br><span class="mut">${esc(pl.steps[pl.steps.length - 1].toName)}</span></div></div></div>`;
 }
 function levelSummary(pl) {
   const ps = pl.steps.filter(x => x.kind === 'piste' && x.o && pisteOf(x.o)), inf = ps.map(x => info(pisteOf(x.o)));
@@ -423,8 +407,6 @@ function renderRoute() {
   const si = startIndex(f.start), ei = f.end ? startIndex(f.end) : null;
   const opt = p => `<option value="${esc(p.name)}">${esc(p.name)} (${p.alt} m)</option>`;
   return `<h2>Mon itinéraire</h2>
-  ${guide ? `<div class="card" style="border-color:var(--brand)"><b>🔊 Guidage en cours</b><div style="margin:6px 0">${guide.idx < guide.steps.length ? 'Prochaine étape : ' + esc(stepText(guide.steps[guide.idx])) : '🎉 Itinéraire terminé !'}</div>
-    <div class="row"><button class="btn sm" data-action="gnext">Étape suivante</button><button class="btn sm ghost" data-action="gstop">Arrêter</button></div></div>` : ''}
   ${suggestionsCard()}
   <div class="card">
     <label class="mut" for="rstart">D'où pars-tu ?</label>
@@ -434,45 +416,53 @@ function renderRoute() {
     <div style="height:10px"></div><div class="mut">Combien de temps ?</div>
     <div class="chips" style="margin-top:6px">${DUR.map(([m, t]) => `<button class="chip${f.budget === m ? ' on' : ''}" data-action="rf" data-k="budget" data-v="${m}">${t}</button>`).join('')}</div>
     <div style="height:10px"></div><div class="mut">Comment choisir la difficulté ?</div>
-    <div class="seg" style="margin:6px 0 8px"><button class="${f.mode === 'felt' ? 'on' : ''}" data-action="rf" data-k="mode" data-v="felt">Difficulté ressentie</button><button class="${f.mode === 'color' ? 'on' : ''}" data-action="rf" data-k="mode" data-v="color">Couleurs officielles</button></div>
-    ${f.mode === 'felt' ? `<div class="mut">Difficulté recherchée : de <b>${f.lo}</b> (${Engine.LEVELS[f.lo - 1].label}) à <b>${f.hi}</b> (${Engine.LEVELS[f.hi - 1].label}) sur 5</div>
+    <div class="seg" style="margin:6px 0 8px"><button class="${f.mode === 'profile' ? 'on' : ''}" data-action="rf" data-k="mode" data-v="profile">👤 Mon profil</button><button class="${f.mode === 'felt' ? 'on' : ''}" data-action="rf" data-k="mode" data-v="felt">Ressentie</button><button class="${f.mode === 'color' ? 'on' : ''}" data-action="rf" data-k="mode" data-v="color">Couleurs</button></div>
+    ${f.mode === 'profile' ? profileCardHtml() : f.mode === 'felt' ? `<div class="mut">Difficulté recherchée : de <b>${f.lo}</b> (${Engine.LEVELS[f.lo - 1].label}) à <b>${f.hi}</b> (${Engine.LEVELS[f.hi - 1].label}) sur 5</div>
       <div class="mut" style="margin-top:6px">De</div><div class="chips" style="margin-top:4px">${Engine.LEVELS.map(l => `<button class="chip${f.lo === l.n ? ' on' : ''}" data-action="rlevel" data-k="lo" data-v="${l.n}" title="${l.label}">${l.n}</button>`).join('')}</div>
       <div class="mut" style="margin-top:6px">À</div><div class="chips" style="margin-top:4px">${Engine.LEVELS.map(l => `<button class="chip${f.hi === l.n ? ' on' : ''}" data-action="rlevel" data-k="hi" data-v="${l.n}" title="${l.label}">${l.n}</button>`).join('')}</div>
       <div class="mut" style="margin-top:6px">1 très facile · 2 facile · 3 intermédiaire · 4 difficile · 5 très difficile (tranches de la note 1–10 des pistes). La difficulté ressentie vient des votes des skieurs, mélangée à une estimation d'après la pente ; une piste peu notée est marquée « estimée » ou « peu documentée ». La couleur officielle reste un garde-fou : une piste dont la couleur est bien plus difficile que ton maximum n'est jamais proposée.</div>`
     : `<div class="chips" style="margin-top:6px">${COLORS.map(c => `<button class="chip${f.colors.includes(c) ? ' on' : ''}" data-action="rcolor" data-c="${c}"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${colorName(c)}</button>`).join('')}</div>
       <div class="mut" style="margin-top:4px">Jamais plus difficile que ta couleur la plus dure. Les pistes plus faciles peuvent servir de liaison.</div>`}
     <div style="height:10px"></div><div class="mut">Ta vitesse</div>
-    <div class="seg" style="margin-top:6px">${[['slow', '🐢 Lent'], ['medium', '⛷ Moyen'], ['fast', '⚡ Rapide']].map(([k, t]) => `<button class="${f.speed === k ? 'on' : ''}" data-action="rf" data-k="speed" data-v="${k}">${t}</button>`).join('')}</div>
+    <div class="seg" style="margin-top:6px">${[['slow', '🐢 Lent'], ['medium', '⛷ Moyen'], ['fast', '⚡ Rapide']].map(([k, t]) => `<button class="${(f.mode === 'profile' ? effectiveForm().speed : f.speed) === k ? 'on' : ''}" data-action="rf" data-k="speed" data-v="${k}">${t}</button>`).join('')}</div>
     <div class="row" style="gap:8px;margin-top:8px"><label class="mut" for="wmargin">Marge d'attente par remontée</label><select class="f" id="wmargin" style="width:auto">${[[0, 'aucune'], [3, '3 min'], [5, '5 min'], [8, '8 min']].map(([v, t]) => `<option value="${v}" ${S.waitMargin === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
     <div class="mut">Les attentes connues (exploitant, signalements, moyennes) sont toujours utilisées. Cette marge ne s'applique qu'aux remontées sans donnée ; c'est une estimation de ta part, pas une mesure.</div>
-    <label class="chk"><input type="checkbox" data-bind="rwalk" ${f.walk ? 'checked' : ''}> Autoriser de courts chemins à pied (en chaussures de ski)</label>
+    ${f.mode === 'profile' && profCrit().walk === false ? '' : `<label class="chk"><input type="checkbox" data-bind="rwalk" ${f.walk ? 'checked' : ''}> Autoriser de courts chemins à pied (en chaussures de ski)</label>`}
     <button class="btn" data-action="plan">Créer mon itinéraire</button>
   </div>
   ${planMsg ? `<div class="warn">${esc(planMsg)}</div>` : ''}
-  ${plan ? `<div class="card"><h3 style="margin-top:0">Ton itinéraire</h3>${planSummary(plan)}</div>
-    <div class="card">${mapSvg(plan)}</div>
+  ${plan ? `<div class="card"><h3 style="margin-top:0">Ton itinéraire</h3>${planSummary(plan)}
+      <div style="height:10px"></div><button class="btn" data-action="nstart">🧭 Démarrer la navigation</button></div>
+    <div class="card">${previewHtml()}</div>
     ${explainCard()}
     <div class="card"><h3 style="margin-top:0">Étape par étape</h3>${stepsHtml(plan)}</div>
-    <div class="row"><button class="btn sec" data-action="plan" data-next="1">↻ Autre proposition</button><button class="btn sec" data-action="download">📥 Hors ligne</button></div>
-    <div style="height:8px"></div><div class="row"><button class="btn sec" data-action="gstart">🔊 Guidage audio</button><button class="btn ghost" data-action="share" data-k="route">📤 Partager</button></div>` : ''}
-  ${saved ? `<div class="card"><b>📥 Itinéraire téléchargé</b><div class="mut">Enregistré le ${new Date(saved.savedAt).toLocaleString('fr-FR')}, disponible sans réseau.</div>
-    <div class="row" style="margin-top:8px"><button class="btn sm sec" data-action="loadsaved">Ouvrir</button><button class="btn sm ghost" data-action="delsaved">Supprimer</button></div></div>` : ''}
-  <p class="mut">Les liaisons entre pistes, remontées et chemins viennent de la carte OpenStreetMap, rapprochée des données officielles. Elles peuvent contenir des erreurs : vérifie toujours sur le plan officiel et sur place, et respecte la fermeture des pistes et le balisage.</p>`;
+    <div class="row"><button class="btn sec" data-action="plan" data-next="1">↻ Autre proposition</button><button class="btn ghost" data-action="share" data-k="route">📤 Partager</button></div><div style="height:12px"></div>` : ''}
+  ${plan || saved ? `<div class="card" id="offcard">${offCardHtml()}</div>` : ''}
+    <p class="mut">Les liaisons entre pistes, remontées et chemins viennent de la carte OpenStreetMap, rapprochée des données officielles. Elles peuvent contenir des erreurs : vérifie toujours sur le plan officiel et sur place, et respecte la fermeture des pistes et le balisage.</p>`;
 }
 const generate = next => generateAt(next ? (S.rf.variant || 0) + 1 : 0);
 const edgeLevel = e => { const p = e.o && pisteOf(e.o); if (p) { const i = info(p); return { level: i.level, n: i.n }; } return { level: Engine.COLOR_LEVEL[e.c] ?? 5, n: 0 }; };
+/* Calcul commun (génération, recalcul en navigation). req : { mode, lo, hi, colors, walk, speed } déjà résolus (niveaux 1–5). */
+function computePlan(q) {
+  const [lo, hi] = Engine.levelRange(q.lo, q.hi), ctx = routeCtx();
+  return Engine.planRoute(NET, { start: q.start, end: q.end, budget: q.budget, speed: q.speed, colors: q.colors, walk: q.walk, variant: q.variant, blocked: e => !!e.o && isClosed(e.k === 'lift' ? 'lift' : 'piste', e.o),
+    waitOf, pref: prefOf(ctx, hi), ...(q.mode === 'felt' ? { levelOf: edgeLevel, lo, hi } : {}) });
+}
 function generateAt(v) {
   const f = S.rf; f.variant = v;
-  const si = startIndex(f.start), ei = f.end ? startIndex(f.end) : si;
-  const [lo, hi] = Engine.levelRange(f.lo, f.hi);
-  const ctx = routeCtx();
-  const r = Engine.planRoute(NET, { start: si, end: ei, budget: f.budget, speed: f.speed, colors: f.colors, walk: f.walk, variant: f.variant, blocked: e => !!e.o && isClosed(e.k === 'lift' ? 'lift' : 'piste', e.o),
-    waitOf, pref: prefOf(ctx, hi), ...(f.mode === 'felt' ? { levelOf: edgeLevel, lo, hi } : {}) });
+  const si = startIndex(f.start), ei = f.end ? startIndex(f.end) : si, eff = effectiveForm();
+  if (f.mode === 'profile' && eff.profile.missing.includes('level')) { plan = null; planMsg = 'Pour utiliser ton profil, indique ton niveau (seule information indispensable), ou choisis un autre mode.'; save(); render(); return; }
+  const req = { mode: eff.mode, lo: eff.lo, hi: eff.hi, colors: eff.colors, walk: eff.walk, speed: eff.speed }, ctx = routeCtx();
+  const r = computePlan({ ...req, start: si, end: ei, budget: f.budget, variant: f.variant });
   planMsg = '';
   if (r.error) {
     plan = null;
-    planMsg = f.mode === 'color' && !f.colors.length ? 'Choisis au moins une couleur de piste.' : !f.walk ? "Aucun itinéraire sans marche depuis ce départ : autorise les courts chemins à pied." : "Aucun itinéraire trouvé avec ces choix : essaie une durée plus longue, une autre couleur ou un autre départ.";
-  } else { plan = r; plan.opt.loL = f.lo; plan.opt.hiL = f.hi; plan.reasons = explain(plan, ctx); }
+    planMsg = eff.mode === 'color' && !eff.colors.length ? 'Choisis au moins une couleur de piste.' : !eff.walk ? "Aucun itinéraire sans marche depuis ce départ : autorise les courts chemins à pied." : "Aucun itinéraire trouvé avec ces choix : essaie une durée plus longue, une autre couleur ou un autre départ.";
+  } else {
+    plan = r; plan.req = req; plan.opt.loL = eff.lo; plan.opt.hiL = eff.hi; selStep = null;
+    if (eff.profile) plan.opt.profile = { used: eff.profile.used.map(u => u.label + ' → ' + u.effect), ignored: eff.profile.ignored.map(i => i.label), adjusted: hasTmp() };
+    plan.reasons = explain(plan, ctx);
+  }
   save(); render();
 }
 
@@ -942,6 +932,7 @@ function advanceGuide() {
 function render() {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('#view').innerHTML = { pistes: renderPistes, route: renderRoute, weather: renderWeather, day: renderDay, meet: renderMeet, about: renderAbout }[S.tab]();
+  afterRender();
 }
 const updateList = () => { const l = $('#plist'); if (l) l.innerHTML = listHtml(); };
 
@@ -985,15 +976,13 @@ document.addEventListener('click', e => {
     case 'mine': f.mine = !f.mine; save(); render(); break;
     case 'heart': S.hearts = S.hearts.includes(d.id) ? S.hearts.filter(h => h !== d.id) : [...S.hearts, d.id]; save(); pisteSheet(d.id); render(); break;
     case 'skied': addLog({ type: 'piste', cands: [d.id], altFrom: pisteOf(d.id).altFrom, altTo: pisteOf(d.id).altTo, t: Date.now(), manual: true }); toast('Ajoutée à ta journée'); break;
-    case 'rf': S.rf[d.k] = d.k === 'budget' ? +d.v : d.v; save(); render(); break;
+    case 'rf': if (d.k === 'speed' && S.rf.mode === 'profile') (S.rf.tmp = S.rf.tmp || {}).speed = d.v; else S.rf[d.k] = d.k === 'budget' ? +d.v : d.v; save(); render(); break;
     case 'rlevel': { S.rf[d.k] = +d.v; if (S.rf.lo > S.rf.hi) { if (d.k === 'lo') S.rf.hi = S.rf.lo; else S.rf.lo = S.rf.hi; } save(); render(); break; }
     case 'rcolor': S.rf.colors = S.rf.colors.includes(d.c) ? S.rf.colors.filter(c => c !== d.c) : [...S.rf.colors, d.c]; save(); render(); break;
     case 'plan': generate(!!d.next); break;
     case 'openstep': { const s = plan.steps[+d.i]; if (s.kind === 'piste') pisteSheet(s.o); else liftSheet(s.o); break; }
-    case 'download': S.route = { stationId: S.station, plan, savedAt: Date.now() }; save(); toast('Itinéraire téléchargé : utilisable sans réseau.'); render(); break;
-    case 'loadsaved': plan = S.route.plan; render(); break;
-    case 'delsaved': S.route = null; save(); render(); break;
-    case 'gstart': guide = { steps: plan.steps, idx: 0 }; startTracking(); speak(stepText(guide.steps[0])); render(); break;
+    case 'loadsaved': plan = S.route.plan; planMsg = ''; selStep = null; S.tab = 'route'; render(); window.scrollTo(0, 0); break;
+    case 'delsaved': if (confirm('Supprimer l\'itinéraire téléchargé et le fond de carte de ton téléphone ?')) { S.route = null; save(); Offline.removeBasemap().then(() => { offStat = { checked: false, map: null, miss: [] }; loadBasemap('network'); render(); }); } break;
     case 'gnext': advanceGuide(); break;
     case 'gstop': guide = null; render(); break;
     case 'track': if (watchId !== null) stopTracking(); else startTracking(); render(); break;
@@ -1018,14 +1007,16 @@ document.addEventListener('click', e => {
     case 'send': { const i = $('#chatin'), v = i.value.trim(); if (!v) break;
       (S.chat[chatKey()] = S.chat[chatKey()] || []).push({ who: S.profile.pseudo || 'Skieur', lvl: S.level, status: S.profile.status, t: hhmm(Date.now()), text: v, me: true }); save(); render(); break; }
     case 'reset': if (confirm('Effacer toutes tes données SKIP ?')) { localStorage.removeItem(KEY); location.reload(); } break;
+    default: navAction(d);
   }
 });
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'q') { S.filt.q = t.value; updateList(); }
   else if (t.id === 'qrs') { $('#qrres').innerHTML = qrResults(); }
-  else if (t.dataset.range === 'level') { S.level = +t.value; $('#lvl').textContent = t.value; save(); updateList(); }
-  else if (t.dataset.range === 'level2') { S.level = +t.value; save(); }
+  else if (t.dataset.range === 'level') { S.level = +t.value; S.levelSet = true; $('#lvl').textContent = t.value; save(); updateList(); }
+  else if (t.dataset.range === 'level2') { S.level = +t.value; S.levelSet = true; save(); }
+  else if (t.dataset.range === 'plevel') { $('#plv').textContent = t.value; }
 });
 document.addEventListener('change', e => {
   const t = e.target, b = t.dataset.bind;
@@ -1034,6 +1025,8 @@ document.addEventListener('change', e => {
   else if (b === 'rstart') { S.rf.start = t.value; save(); }
   else if (b === 'rend') { S.rf.end = t.value; save(); }
   else if (b === 'rwalk') { S.rf.walk = t.checked; save(); }
+  else if (b === 'ptmpwalk') { (S.rf.tmp = S.rf.tmp || {}).walk = t.checked ? true : undefined; if (!t.checked) delete S.rf.tmp.walk; save(); render(); }
+  else if (b === 'pvnet') { showNet = t.checked; pvMap && pvMap.setNetwork(netEdges(), showNet); }
   else if (b === 'audio') { S.audio = t.checked; save(); }
   else if (b === 'nenabled') { if (t.checked) enableNotif(); else { S.notif.enabled = false; save(); render(); } }
   else if (b === 'nlift') { S.notif.lift = t.checked; save(); }
@@ -1047,7 +1040,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'manual' && t.value) { const p = pisteOf(t.value); addLog({ type: 'piste', cands: [p.id], altFrom: p.altFrom, altTo: p.altTo, t: Date.now(), manual: true }); render(); }
   else if (t.id === 'simsel' && t.value) { simulateDescent(t.value); }
 });
-$('#station').addEventListener('change', e => { S.station = e.target.value; guide = null; pending = {}; trk = Engine.newTracker(); plan = null; save(); render(); });
+$('#station').addEventListener('change', e => { S.station = e.target.value; guide = null; if (nv) stopNav(); pending = {}; trk = Engine.newTracker(); plan = null; save(); render(); });
 (() => { let tm; const p = $('#pocket'), go = () => { tm = setTimeout(exitPocket, 1000); }, no = () => clearTimeout(tm);
   p.addEventListener('pointerdown', go); p.addEventListener('pointerup', no); p.addEventListener('pointerleave', no); })();
 

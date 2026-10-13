@@ -54,3 +54,12 @@ Les prévisions viennent de l'API publique MET Norway (`api.met.no`, autorise la
 - Pas d'état d'ouverture des pistes ni d'attente aux remontées : l'itinéraire peut inclure une piste fermée.
 - La détection GPS dépend de l'altitude fournie par le téléphone (précision limitée).
 - Pour publier sur les stores : empaqueter avec Capacitor. `engine.js` est testable sous Node sans navigateur.
+
+
+## Navigation, carte et hors ligne
+
+- **Carte** (`map.js`, `mvt.js`, `vendor/pmtiles.js`) : fond vectoriel lu dans `basemap/alpe.pmtiles`, tracé de l'itinéraire (pistes en couleur officielle, remontées en tirets, marche en pointillés, flèches de sens), étape choisie mise en évidence, noms lisibles selon le zoom, déplacement/zoom tactiles.
+- **Navigation** (`nav.js`, `navui.js`) : position projetée sur le tracé, parcouru/restant, bandeau d'instruction, liste d'étapes dépliable, recentrage, état du GPS (refusé, indisponible, imprécis, interrompu) sans fausse précision, sortie de parcours confirmée (3 points / 8 s) avec 3 choix : recalculer, revenir au tracé, ignorer. Suivi manuel (étape précédente/suivante) quand le GPS manque.
+- **Hors ligne** (`offline.js`, `shell.js`, `sw.js`) : « Télécharger pour une utilisation hors ligne » garde le tracé, les consignes, l'application et le fond de carte ; progression, date, état élément par élément, échec explicité. Le recalcul fonctionne hors ligne (le planificateur est dans l'appli).
+- **Profil personnel** : option de filtre qui n'utilise que le niveau, les envies et la discipline du profil ; les ajustements « pour ce trajet » ne modifient jamais le profil sans « Enregistrer ».
+- Tests : `node --test test/engine.test.js test/nav.test.js`, `node test/e2e.js`, `node test/e2e-nav.js` (Playwright ; la position GPS y est simulée).
