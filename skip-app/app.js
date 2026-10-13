@@ -13,10 +13,11 @@ const defaults = () => ({
   profile: { pseudo: '', discipline: 'ski', wants: [], status: 'slopes', socials: {} },
   votes: {}, vlog: [], hearts: [], log: {}, route: null, chat: {}, screen: {}, friends: {},
   filt: { colors: [], q: '', sector: '', sort: 'color', fit: false, open: false, view: 'pistes', mine: false },
-  rf: { start: '', end: '', budget: 120, speed: 'medium', colors: ['green', 'blue', 'red'], walk: true, variant: 0 }
+  notif: { enabled: false, sys: false, lift: true, evening: true, eveningTime: '17:30', max: 3 }, pro: { d: '', ids: [], n: 0, evening: false },
+  rf: { start: '', end: '', budget: 120, speed: 'medium', mode: 'felt', lo: 2, hi: 3, colors: ['green', 'blue', 'red'], walk: true, variant: 0 }
 });
 let S = (() => { try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return defaults(); } })();
-S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf };
+S.notif = { ...defaults().notif, ...S.notif }; S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf };
 if (S.votes && Object.keys(S.votes).length) { Object.entries(S.votes).forEach(([id, sc]) => S.vlog.push({ id, s: sc, t: Date.now(), tags: [] })); S.votes = {}; }   // ancien format
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* stockage indisponible */ } };
 
@@ -193,10 +194,11 @@ function pisteSheet(id) {
   if (liveState === 'idle') liveLoad(false).then(() => { if (sheetId === id) pisteSheet(id); });
   const tags = myVote(id)?.tags || [];
   openSheet(`<div class="row"><span class="sq ${p.color}" style="width:22px;height:22px"></span><h2 style="margin:0">${esc(p.name)}</h2></div>
-    <div class="mut">Piste ${colorName(p.color).toLowerCase()} · ${[kmText(p.km), alts(p)].filter(Boolean).join(' · ')}</div>
+    <div class="mut">Couleur officielle : ${colorName(p.color).toLowerCase()} · ${[kmText(p.km), alts(p)].filter(Boolean).join(' · ')}</div>
+    <div class="mut" style="margin-top:4px">Difficulté ressentie (skieurs) : ${i.global == null ? 'pas encore de vote' : Engine.reliability(i.n).text}</div>
     <div class="row" style="margin:12px 0">${scoreBubble(i, true)}<div>
       <span class="lab ${i.label.key}">${i.label.icon} ${i.label.text.toUpperCase()}${i.global == null ? ' (estimé)' : ''}</span><br>
-      <b>${i.global == null ? `Difficulté estimée : ${fmt1(i.est)}/10` : `Note moyenne : ${fmt1(i.avg)}/10`}</b><br>
+      <b>${i.global == null ? `Difficulté estimée : ${fmt1(i.est)}/10` : `Note moyenne : ${fmt1(i.avg)}/10`}</b> <span class="mut">· niveau ${Engine.levelOf(i.level).n}/5 ${Engine.levelOf(i.level).label.toLowerCase()}</span><br>
       <span class="mut">${i.global == null ? `Aucun vote pour l'instant. Estimation d'après ${esc(i.obj.basis)}.` : `Basée sur ${i.n} vote${i.n > 1 ? 's' : ''} · difficulté globale ${fmt1(i.global)}/10 (avec l'estimation objective ${fmt1(i.est)}/10)`}</span></div></div>
     ${openingLine('piste', id)}
     <div class="fit ${i.fit.key}" style="margin-bottom:8px">${i.fit.text} (niveau ${S.level}/10)</div>
@@ -257,14 +259,24 @@ function mapSvg(pl) {
   return `<svg class="map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Carte de l'itinéraire">${bg}${line}${pl.steps.map(badge).join('')}${Math.abs(f[0] - e[0]) + Math.abs(f[1] - e[1]) < 0.0004 ? flag(f, 'DÉPART · ARRIVÉE', '#0b5fff') : flag(f, 'DÉPART', '#1fb04a') + flag(e, 'ARRIVÉE', '#0b5fff')}</svg>
     <div class="mut" style="margin-top:6px">Trait plein = piste (couleur officielle) · pointillés longs = remontée · pointillés courts = marche · fond clair = autres pistes. Tracés © contributeurs OpenStreetMap.</div>`;
 }
+function feltLine(o) {
+  const p = o && pisteOf(o); if (!p) return 'Piste non officielle : difficulté inconnue';
+  const i = info(p), rel = Engine.reliability(i.n), lvl = Engine.levelOf(i.level);
+  return i.global == null ? `Difficulté estimée ≈ ${lvl.n}/5 · ${rel.text}` : `Difficulté ressentie ${rel.key === 'low' ? '≈ ' : ''}${lvl.n}/5 (${fmt1(i.global)}/10) · ${rel.text}`;
+}
 function stepsHtml(pl) {
   return pl.steps.map((s, i) => {
     const col = s.kind === 'piste' ? `var(--${s.color})` : s.kind === 'lift' ? '#3d4660' : '#a0702a';
     const head = s.kind === 'lift' ? `🚡 ${esc(liftType(s))} · ${esc(s.name)}` : s.kind === 'piste' ? `Piste ${colorName(s.color).toLowerCase()} · ${esc(stepName(s))}` : s.kind === 'walk' ? '🚶 À pied (chaussures de ski)' : '↝ Liaison à ski';
     const info = (s.o && (s.kind === 'piste' ? pisteOf(s.o) : liftOf(s.o))) ? `<button class="btn sm ghost" data-action="openstep" data-i="${i}" aria-label="Détails">ℹ︎</button>` : '';
     return `<div class="step"><div class="num" style="background:${col}">${i + 1}</div><div class="sp"><b>${head}</b><br>
-      <span class="mut">De : ${esc(s.fromName)}${s.altFrom && !s.fromName.startsWith('Carrefour') ? ` (${s.altFrom} m)` : ''}<br>À : ${esc(s.toName)}${s.altTo && !s.toName.startsWith('Carrefour') ? ` (${s.altTo} m)` : ''}<br>${mText(s.m)} · ${s.min} min</span></div>${info}</div>`;
+      ${s.kind === 'piste' ? `<span class="mut" style="display:block"><span class="sq ${s.color}" style="display:inline-block;vertical-align:-2px"></span> Couleur officielle : ${colorName(s.color).toLowerCase()} · ${esc(feltLine(s.o))}</span>` : ''}<span class="mut">De : ${esc(s.fromName)}${s.altFrom && !s.fromName.startsWith('Carrefour') ? ` (${s.altFrom} m)` : ''}<br>À : ${esc(s.toName)}${s.altTo && !s.toName.startsWith('Carrefour') ? ` (${s.altTo} m)` : ''}<br>${mText(s.m)} · ${s.min} min</span></div>${info}</div>`;
   }).join('') + `<div class="step"><div class="num" style="background:var(--brand)">🏁</div><div class="sp"><b>Arrivée</b><br><span class="mut">${esc(pl.steps[pl.steps.length - 1].toName)}</span></div></div>`;
+}
+function levelSummary(pl) {
+  const ps = pl.steps.filter(x => x.kind === 'piste' && x.o && pisteOf(x.o)), inf = ps.map(x => info(pisteOf(x.o)));
+  const rated = inf.filter(i => i.n >= 5).length, few = inf.filter(i => i.n > 0 && i.n < 5).length, est = inf.length - rated - few;
+  return `<div class="mut" style="margin-top:6px">Difficulté recherchée : ${pl.opt.loL} à ${pl.opt.hiL} sur 5 (${Engine.LEVELS[pl.opt.loL - 1].label.toLowerCase()} à ${Engine.LEVELS[pl.opt.hiL - 1].label.toLowerCase()}). Sur ${inf.length} pistes : ${rated} avec au moins 5 votes, ${few} peu documentée${few > 1 ? 's' : ''}, ${est} estimée${est > 1 ? 's' : ''} (aucun vote). Les couleurs officielles restent la référence : une note de skieurs ne rend pas une piste adaptée à tous.</div>`;
 }
 function planSummary(pl) {
   const cols = {}; pl.steps.filter(s => s.kind === 'piste').forEach(s => cols[s.color] = (cols[s.color] || 0) + 1);
@@ -272,6 +284,7 @@ function planSummary(pl) {
   return `<p style="margin:0 0 10px">Tu pars de <b>${esc(st0.fromName)}</b> et tu finis à <b>${esc(stN.toName)}</b>, en ${pl.steps.length} étapes.</p>
     <div class="stats"><div><b>${fmtMin(pl.total)}</b><span>durée</span></div><div><b>${pl.descents}</b><span>pistes</span></div><div><b>${String(pl.km).replace('.', ',')}</b><span>km skiés</span></div><div><b>${pl.down}</b><span>m descendus</span></div></div>
     <div class="chips" style="margin-top:8px">${Object.entries(cols).map(([c, n]) => `<span class="chip"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${n}</span>`).join('')}${pl.walkMin ? `<span class="chip">🚶 ${pl.walkMin} min à pied</span>` : ''}</div>
+    ${pl.opt.mode === 'felt' ? levelSummary(pl) : ''}
     ${pl.offColor ? `<div class="mut" style="margin-top:6px">dont ${pl.offColor} min sur des pistes plus faciles que celles choisies, pour relier les secteurs.</div>` : ''}
     ${Math.abs(pl.total - pl.opt.budget) > pl.opt.budget * 0.15 ? `<div class="mut" style="margin-top:6px">Durée demandée : ${fmtMin(pl.opt.budget)}. C'est le meilleur parcours trouvé.</div>` : ''}
     <div class="mut" style="margin-top:6px">Remontées : durées officielles (sans attente). Descentes et marche : durées estimées d'après la longueur.</div>`;
@@ -291,9 +304,14 @@ function renderRoute() {
     <select class="f" id="rend" data-bind="rend"><option value="">Au même endroit</option>${list.map(p => opt(p).replace('<option ', `<option ${f.end && p.i === ei ? 'selected ' : ''}`)).join('')}</select>
     <div style="height:10px"></div><div class="mut">Combien de temps ?</div>
     <div class="chips" style="margin-top:6px">${DUR.map(([m, t]) => `<button class="chip${f.budget === m ? ' on' : ''}" data-action="rf" data-k="budget" data-v="${m}">${t}</button>`).join('')}</div>
-    <div style="height:10px"></div><div class="mut">Quelles pistes ?</div>
-    <div class="chips" style="margin-top:6px">${COLORS.map(c => `<button class="chip${f.colors.includes(c) ? ' on' : ''}" data-action="rcolor" data-c="${c}"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${colorName(c)}</button>`).join('')}</div>
-    <div class="mut" style="margin-top:4px">Jamais plus difficile que ta couleur la plus dure. Les pistes plus faciles peuvent servir de liaison.</div>
+    <div style="height:10px"></div><div class="mut">Comment choisir la difficulté ?</div>
+    <div class="seg" style="margin:6px 0 8px"><button class="${f.mode === 'felt' ? 'on' : ''}" data-action="rf" data-k="mode" data-v="felt">Difficulté ressentie</button><button class="${f.mode === 'color' ? 'on' : ''}" data-action="rf" data-k="mode" data-v="color">Couleurs officielles</button></div>
+    ${f.mode === 'felt' ? `<div class="mut">Difficulté recherchée : de <b>${f.lo}</b> (${Engine.LEVELS[f.lo - 1].label}) à <b>${f.hi}</b> (${Engine.LEVELS[f.hi - 1].label}) sur 5</div>
+      <div class="mut" style="margin-top:6px">De</div><div class="chips" style="margin-top:4px">${Engine.LEVELS.map(l => `<button class="chip${f.lo === l.n ? ' on' : ''}" data-action="rlevel" data-k="lo" data-v="${l.n}" title="${l.label}">${l.n}</button>`).join('')}</div>
+      <div class="mut" style="margin-top:6px">À</div><div class="chips" style="margin-top:4px">${Engine.LEVELS.map(l => `<button class="chip${f.hi === l.n ? ' on' : ''}" data-action="rlevel" data-k="hi" data-v="${l.n}" title="${l.label}">${l.n}</button>`).join('')}</div>
+      <div class="mut" style="margin-top:6px">1 très facile · 2 facile · 3 intermédiaire · 4 difficile · 5 très difficile (tranches de la note 1–10 des pistes). La difficulté ressentie vient des votes des skieurs, mélangée à une estimation d'après la pente ; une piste peu notée est marquée « estimée » ou « peu documentée ». La couleur officielle reste un garde-fou : une piste dont la couleur est bien plus difficile que ton maximum n'est jamais proposée.</div>`
+    : `<div class="chips" style="margin-top:6px">${COLORS.map(c => `<button class="chip${f.colors.includes(c) ? ' on' : ''}" data-action="rcolor" data-c="${c}"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${colorName(c)}</button>`).join('')}</div>
+      <div class="mut" style="margin-top:4px">Jamais plus difficile que ta couleur la plus dure. Les pistes plus faciles peuvent servir de liaison.</div>`}
     <div style="height:10px"></div><div class="mut">Ta vitesse</div>
     <div class="seg" style="margin-top:6px">${[['slow', '🐢 Lent'], ['medium', '⛷ Moyen'], ['fast', '⚡ Rapide']].map(([k, t]) => `<button class="${f.speed === k ? 'on' : ''}" data-action="rf" data-k="speed" data-v="${k}">${t}</button>`).join('')}</div>
     <label class="chk"><input type="checkbox" data-bind="rwalk" ${f.walk ? 'checked' : ''}> Autoriser de courts chemins à pied (en chaussures de ski)</label>
@@ -310,15 +328,18 @@ function renderRoute() {
   <p class="mut">Les liaisons entre pistes, remontées et chemins viennent de la carte OpenStreetMap, rapprochée des données officielles. Elles peuvent contenir des erreurs : vérifie toujours sur le plan officiel et sur place, et respecte la fermeture des pistes et le balisage.</p>`;
 }
 const generate = next => generateAt(next ? (S.rf.variant || 0) + 1 : 0);
+const edgeLevel = e => { const p = e.o && pisteOf(e.o); if (p) { const i = info(p); return { level: i.level, n: i.n }; } return { level: Engine.COLOR_LEVEL[e.c] ?? 5, n: 0 }; };
 function generateAt(v) {
   const f = S.rf; f.variant = v;
   const si = startIndex(f.start), ei = f.end ? startIndex(f.end) : si;
-  const r = Engine.planRoute(NET, { start: si, end: ei, budget: f.budget, speed: f.speed, colors: f.colors, walk: f.walk, variant: f.variant });
+  const [lo, hi] = Engine.levelRange(f.lo, f.hi);
+  const r = Engine.planRoute(NET, { start: si, end: ei, budget: f.budget, speed: f.speed, colors: f.colors, walk: f.walk, variant: f.variant, blocked: e => !!e.o && isClosed(e.k === 'lift' ? 'lift' : 'piste', e.o),
+    ...(f.mode === 'felt' ? { levelOf: edgeLevel, lo, hi } : {}) });
   planMsg = '';
   if (r.error) {
     plan = null;
-    planMsg = !f.colors.length ? 'Choisis au moins une couleur de piste.' : !f.walk ? "Aucun itinéraire sans marche depuis ce départ : autorise les courts chemins à pied." : "Aucun itinéraire trouvé avec ces choix : essaie une durée plus longue, une autre couleur ou un autre départ.";
-  } else plan = r;
+    planMsg = f.mode === 'color' && !f.colors.length ? 'Choisis au moins une couleur de piste.' : !f.walk ? "Aucun itinéraire sans marche depuis ce départ : autorise les courts chemins à pied." : "Aucun itinéraire trouvé avec ces choix : essaie une durée plus longue, une autre couleur ou un autre départ.";
+  } else { plan = r; plan.opt.loL = f.lo; plan.opt.hiL = f.hi; }
   save(); render();
 }
 
@@ -336,6 +357,10 @@ function handleFix(fix) {
   if (fix.alt == null) { if (!altWarned) { altWarned = true; toast("Ton téléphone ne donne pas l'altitude : la détection automatique est impossible.", 5000); } return; }
   const seg = Engine.onFix(station(), trk, fix);
   if (seg) { addLog(seg); if (guide && seg.type === 'piste') advanceGuide(); }
+  if (S.notif.enabled && S.notif.lift && Engine.climbGain(trk) >= 60) {   // en remontée : on invite à noter la dernière descente identifiée
+    const log = logToday(), k = log.map((e, j) => ({ e, j })).reverse().find(x => x.e.type === 'piste' && Date.now() - x.e.t < 25 * 60000);
+    if (k) { const id = k.e.pick || k.e.cands[0]; if (id) promptRate(id, k.j); }
+  }
   if (S.tab === 'day' && $('#pocket').hidden) render();
 }
 function startTracking() {
@@ -368,6 +393,7 @@ function renderDay() {
     <div class="row"><button class="btn" data-action="track">${watchId !== null ? '⏹ Arrêter' : '▶ Démarrer'} l'enregistrement</button>
     <button class="btn sec" data-action="pocket">🌑 Mode poche</button></div>
     <label class="chk"><input type="checkbox" data-bind="audio" ${S.audio ? 'checked' : ''}> Confirmation vocale + vibration (sans regarder)</label></div>
+  ${renderNotifCard()}
   <div class="card"><b>📵 Temps d'écran aujourd'hui : ${mins} min</b>
     <div class="bar" style="margin:8px 0"><i style="width:${Math.min(100, mins / 15 * 100)}%"></i></div>
     <div class="mut">Objectif : moins de 15 min. ${auto} descente(s) enregistrée(s) automatiquement. Profite de la remontée pour admirer le paysage 🏔️</div></div>
@@ -420,7 +446,7 @@ const b64e = o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(
 const b64d = c => JSON.parse(decodeURIComponent(escape(atob(c.replace(/-/g, '+').replace(/_/g, '/')))));
 function sharePayload(kind) {
   const pr = S.profile;
-  const f = S.rf, r = kind === 'route' && plan ? { start: starts().find(p => p.i === plan.opt.start)?.name, end: plan.opt.end !== plan.opt.start ? starts().find(p => p.i === plan.opt.end)?.name : '', budget: plan.opt.budget, speed: plan.opt.speed, colors: plan.opt.colors, walk: plan.opt.walk, variant: plan.opt.variant } : null;
+  const f = S.rf, r = kind === 'route' && plan ? { start: starts().find(p => p.i === plan.opt.start)?.name, end: plan.opt.end !== plan.opt.start ? starts().find(p => p.i === plan.opt.end)?.name : '', budget: plan.opt.budget, speed: plan.opt.speed, colors: plan.opt.colors, walk: plan.opt.walk, variant: plan.opt.variant, mode: plan.opt.mode, lo: plan.opt.loL || 0, hi: plan.opt.hiL || 0 } : null;
   return { v: 2, n: pr.pseudo || 'Skieur', l: S.level, d: pr.discipline, s: pr.status, w: pr.wants, so: pr.socials, st: S.station, h: S.hearts, r, t: Date.now(),
     v: S.vlog.slice(-80).map(v => [v.id, v.s, v.t, (v.tags || []).map(t => TAGS.indexOf(t)).filter(i => i >= 0)]) };
 }
@@ -457,7 +483,8 @@ function importFriend(raw) {
     .map(v => [v[0], v[1], v[2], (Array.isArray(v[3]) ? v[3] : []).filter(i => Number.isInteger(i) && i >= 0 && i < TAGS.length)]);
   const r = o.r;
   if (r && typeof r.start === 'string' && r.start.length < 120 && Engine.SPEED_KMH[r.speed] && Array.isArray(r.colors))
-    f.r = { start: r.start, end: typeof r.end === 'string' ? r.end.slice(0, 120) : '', budget: Math.min(480, Math.max(30, +r.budget || 120)), speed: r.speed, colors: r.colors.filter(c => COLORS.includes(c)), walk: r.walk !== false, variant: Math.min(50, Math.max(0, +r.variant || 0)) };
+    f.r = { start: r.start, end: typeof r.end === 'string' ? r.end.slice(0, 120) : '', budget: Math.min(480, Math.max(30, +r.budget || 120)), speed: r.speed, colors: r.colors.filter(c => COLORS.includes(c)), walk: r.walk !== false, variant: Math.min(50, Math.max(0, +r.variant || 0)),
+      mode: r.mode === 'felt' ? 'felt' : 'color', lo: clamp(Math.round(+r.lo || 2), 1, 5), hi: clamp(Math.round(+r.hi || 3), 1, 5) };
   if (Object.keys(S.friends).length >= 50 && !S.friends[f.n.toLowerCase()]) return 'Limite de 50 contacts atteinte.';
   S.friends[f.n.toLowerCase()] = f; save(); return null;
 }
@@ -676,6 +703,97 @@ function renderWeather() {
   <button class="btn sm ghost" data-action="wxreload">↻ Actualiser</button>${links}`;
 }
 
+/* ---------- Invitations à noter (notifications) ---------- */
+/* Principes : consentement explicite ; jamais pendant une descente ; une seule invitation par piste et par jour ; jamais pour une piste déjà notée ;
+   plafond quotidien réglable ; la notation reste locale (aucun réseau nécessaire). Les notifications système passent par le service worker. */
+const QUESTION = "Alors, cette piste, tu l'as trouvée difficile ?";
+let rateCtx = null, bannerTimer = null, queuedBanner = null;
+const notifSupported = () => 'Notification' in window && 'serviceWorker' in navigator;
+function resetPro() { if (S.pro.d !== todayKey()) S.pro = { d: todayKey(), ids: [], n: 0, evening: false }; }
+const unratedToday = () => [...new Set(logToday().filter(e => e.type === 'piste' && e.pick && !myVote(e.pick)).map(e => e.pick))];
+const canPrompt = id => { resetPro(); return S.notif.enabled && !myVote(id) && !S.pro.ids.includes(id) && S.pro.n < S.notif.max && !Engine.descending(trk); };
+async function enableNotif() {
+  S.notif.enabled = true;
+  if (notifSupported()) {
+    let p = Notification.permission; if (p === 'default') p = await Notification.requestPermission();
+    S.notif.sys = p === 'granted';
+    toast(p === 'granted' ? 'Notifications activées.' : 'Autorisation non accordée : les invitations apparaîtront dans l\'appli, sans notification système.', 4500);
+  } else { S.notif.sys = false; toast('Notifications système indisponibles sur cet appareil : invitations dans l\'appli uniquement.', 4500); }
+  save(); render();
+}
+async function sysNotify(title, body, data, tag) {
+  try { const reg = await navigator.serviceWorker.ready; await reg.showNotification(title, { body, tag, data, icon: 'icons/icon.svg', badge: 'icons/icon.svg', renotify: false }); return true; } catch { return false; }
+}
+function showBanner(b) {
+  const el = $('#prompt'); clearTimeout(bannerTimer);
+  el.innerHTML = `<div class="sp"><b>${esc(b.title)}</b><br><span class="mut">${esc(b.sub)}</span></div><button class="btn sm" data-action="${b.evening ? 'qevening' : 'qopen'}" data-id="${b.id || ''}" data-k="${b.k ?? ''}">${b.evening ? 'Voir' : 'Noter'}</button><button class="btn sm ghost" data-action="qlater" aria-label="Plus tard">✕</button>`;
+  el.hidden = false; bannerTimer = setTimeout(() => el.hidden = true, 25000);
+}
+function deliver(b, sysData) {
+  if (document.visibilityState === 'visible') return showBanner(b);
+  if (S.notif.sys) sysNotify(b.title, b.sub, sysData, b.tag).then(ok => { if (!ok) queuedBanner = b; });
+  else queuedBanner = b;   // affichée au retour dans l'appli
+}
+function promptRate(id, k) {
+  if (!canPrompt(id)) return false;
+  S.pro.ids.push(id); S.pro.n++; save();
+  deliver({ title: QUESTION, sub: pisteOf(id).name, id, k, tag: 'rate-' + id }, { id, k });
+  return true;
+}
+function eveningCheck() {
+  resetPro();
+  if (!S.notif.enabled || !S.notif.evening || S.pro.evening || Engine.descending(trk)) return;
+  const [h, m] = S.notif.eveningTime.split(':').map(Number), now = new Date();
+  if (now.getHours() * 60 + now.getMinutes() < h * 60 + m) return;
+  const todo = unratedToday(); S.pro.evening = true; save();
+  if (todo.length) deliver({ title: 'Fin de journée : tes pistes à noter', sub: `${todo.length} piste${todo.length > 1 ? 's' : ''} sans note, 2 secondes chacune`, evening: true, tag: 'evening' }, { evening: true });
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { if (queuedBanner) { showBanner(queuedBanner); queuedBanner = null; } eveningCheck(); } });
+
+/* Fiche de notation rapide : ouverte directement depuis l'invitation, sans écran intermédiaire */
+function openRate(id, k) { if (!pisteOf(id)) return; $('#prompt').hidden = true; rateCtx = { id, k: k === '' || k == null ? null : +k, correcting: false }; rateSheet(); }
+function rateSheet() {
+  const { id, k, correcting } = rateCtx, p = pisteOf(id), i = info(p), entry = k != null ? logToday()[k] : null, inDay = logToday().some(e => e.pick === id);
+  const cands = (entry?.cands || []).filter(c => c !== id && pisteOf(c));
+  openSheet(`<h2 style="margin:0 0 6px;font-size:19px">${QUESTION}</h2>
+    <div class="row"><span class="sq ${p.color}" style="width:18px;height:18px"></span><b class="sp">${esc(p.name)}</b><span class="mut">piste ${colorName(p.color).toLowerCase()}</span></div>
+    ${i.mine ? `<div class="mut" style="margin-top:4px">Déjà notée : ${i.mine}/10. Un tap pour corriger.</div>` : ''}
+    <div class="rate" style="margin-top:10px">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `<button style="background:${scoreColor(n)}" class="${i.mine === n ? 'on' : ''}" data-action="qrate" data-n="${n}" aria-label="Note ${n} sur 10">${n}</button>`).join('')}</div>
+    <div class="row" style="justify-content:space-between"><span class="mut">très facile</span><span class="mut">très difficile</span></div>
+    <div class="row" style="margin-top:12px"><button class="heart${i.liked ? ' on' : ''}" data-action="qheart">${i.liked ? '❤️ Coup de cœur' : '🤍 Coup de cœur'}</button>
+      <button class="btn sec${inDay ? '' : ''}" data-action="qday">${inDay ? '✅ Dans ma journée' : '➕ Ajouter à ma journée'}</button></div>
+    <div style="margin-top:10px"><button class="chip" data-action="qwrong">Ce n'est pas cette piste ?</button> <button class="chip" data-action="close">Terminé</button></div>
+    ${correcting ? `<div class="mut" style="margin-top:10px">Quelle piste as-tu descendue ?</div>${cands.length ? `<div class="chips" style="margin-top:6px">${cands.map(c => `<button class="chip" data-action="qpick" data-id="${c}">${esc(pisteOf(c).name)}</button>`).join('')}</div>` : ''}
+      <select class="f" id="qother" style="margin-top:8px"><option value="">Une autre piste…</option>${[...station().pistes].sort((a, b) => a.name.localeCompare(b.name)).map(x => `<option value="${x.id}">${esc(x.name)} (${colorName(x.color).toLowerCase()})</option>`).join('')}</select>` : ''}
+    <p class="mut" style="margin-top:12px">Pas de commentaire à écrire. Ta note est enregistrée sur ton téléphone et améliore aussitôt la difficulté de la piste.</p>`);
+}
+function renderNotifCard() {
+  const n = S.notif, perm = notifSupported() ? Notification.permission : 'unsupported';
+  return `<div class="card"><b>🔔 Invitations à noter</b>
+    <div class="mut" style="margin:4px 0 8px">« ${QUESTION} » : un tap ouvre la fiche, un tap enregistre ta note. Jamais pendant une descente, une seule invitation par piste et par jour, jamais pour une piste déjà notée.</div>
+    <label class="chk"><input type="checkbox" data-bind="nenabled" ${n.enabled ? 'checked' : ''}> Me proposer de noter mes pistes</label>
+    ${n.enabled ? `<label class="chk"><input type="checkbox" data-bind="nlift" ${n.lift ? 'checked' : ''}> Pendant la remontée (si elle est détectée)</label>
+    <label class="chk"><input type="checkbox" data-bind="nevening" ${n.evening ? 'checked' : ''}> En fin de journée, pour les pistes non notées</label>
+    ${n.evening ? `<div class="row" style="gap:8px"><label class="mut" for="neve">À partir de</label><input type="time" id="neve" value="${esc(n.eveningTime)}" style="width:auto"></div>` : ''}
+    <div class="row" style="gap:8px;margin-top:6px"><label class="mut" for="nmax">Maximum par jour</label><select class="f" id="nmax" style="width:auto">${[1, 3, 5, 10].map(v => `<option value="${v}" ${n.max === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+    <div class="mut" style="margin-top:8px">${perm === 'granted' ? 'Notifications système autorisées.' : perm === 'denied' ? 'Notifications système refusées par le navigateur : invitations dans l\'appli seulement.' : perm === 'unsupported' ? 'Notifications système indisponibles ici : invitations dans l\'appli seulement.' : 'Notifications système non encore autorisées.'}
+      ${perm === 'default' ? '<button class="btn sm sec" data-action="nperm">Autoriser</button>' : ''}</div>
+    <div class="row" style="margin-top:8px"><button class="btn sm ghost" data-action="ntest">Voir un exemple</button></div>` : ''}
+    <details style="margin-top:10px"><summary class="mut">Ce qu'il faut pour la détection automatique</summary>
+      <p class="mut">Autorisations : <b>notifications</b> et <b>position précise</b> (GPS, avec altitude). Sur le web, le téléphone suspend l'appli quand l'écran est verrouillé : la détection (et donc l'invitation « en remontée ») ne marche que <b>appli ouverte</b>, par exemple en mode poche avec l'écran maintenu allumé. L'invitation de fin de journée demande aussi que l'appli soit ouverte à l'heure choisie ; sinon elle s'affiche à ton retour. Pour être prévenu <b>appli fermée</b>, il faut des notifications poussées (serveur Web Push avec clés VAPID, voir relay/README.md) et, pour suivre ta position en arrière-plan, une appli native (Capacitor). Sur iPhone, installe d'abord l'appli sur l'écran d'accueil (iOS 16.4 minimum). Rien de tout cela n'est supposé actif : sans détection, ajoute tes pistes à la main ou cherche une piste ci-dessous.</p></details></div>
+  <div class="card"><b>⭐ Noter une piste</b>
+    <input type="search" id="qrs" placeholder="🔍 Nom de la piste" autocomplete="off" aria-label="Rechercher une piste à noter" style="margin:8px 0"><div id="qrres"></div></div>`;
+}
+const qrResults = () => { const q = norm($('#qrs')?.value || '').trim(); const l = q ? station().pistes.filter(p => norm(p.name).includes(q)).slice(0, 8) : []; return l.map(p => `<button class="piste" data-action="qopen" data-id="${p.id}"><span class="sq ${p.color}"></span><span class="sp"><b>${esc(p.name)}</b><br><span class="mut">${colorName(p.color).toLowerCase()}${myVote(p.id) ? ' · déjà notée ' + myVote(p.id).s + '/10' : ''}</span></span></button>`).join(''); };
+function handleDeepLink(h) {
+  const m = /^#?rate=([^&]+)/.exec(h || ''); if (m) { openRate(decodeURIComponent(m[1]), null); history.replaceState(null, '', location.pathname); return; }
+  if (/^#?evening/.test(h || '')) { S.tab = 'day'; save(); render(); history.replaceState(null, '', location.pathname); }
+}
+window.addEventListener('hashchange', () => handleDeepLink(location.hash));
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', ev => {
+  const d = ev.data || {}; if (d.type === 'rate') openRate(d.id, d.k); else if (d.type === 'evening') { S.tab = 'day'; save(); render(); }
+});
+
 /* ---------- Guidage ---------- */
 function advanceGuide() {
   if (!guide) return;
@@ -700,6 +818,16 @@ document.addEventListener('click', e => {
   switch (d.action) {
     case 'wxalt': wxAlt = d.k; render(); break;
     case 'wxreload': wxData = { base: null, top: null }; wxLoad(true); liveLoad(true).then(() => S.tab === 'weather' && render()); render(); break;
+    case 'nperm': enableNotif(); break;
+    case 'ntest': { const id = (station().pistes.find(p => !myVote(p.id)) || station().pistes[0]).id; deliver({ title: QUESTION, sub: pisteOf(id).name + ' (exemple)', id, k: null, tag: 'test' }, { id }); break; }
+    case 'qopen': openRate(d.id, d.k); break;
+    case 'qlater': $('#prompt').hidden = true; break;
+    case 'qevening': $('#prompt').hidden = true; S.tab = 'day'; save(); render(); break;
+    case 'qrate': { const before = info(pisteOf(rateCtx.id)).level; setVote(rateCtx.id, +d.n); toast(`Merci ! Difficulté de la piste : ${fmt1(before)} → ${fmt1(info(pisteOf(rateCtx.id)).level)}/10.`); rateSheet(); if (S.tab === 'pistes') updateList(); if (S.tab === 'day') render(); break; }
+    case 'qheart': { const id = rateCtx.id; S.hearts = S.hearts.includes(id) ? S.hearts.filter(h => h !== id) : [...S.hearts, id]; save(); rateSheet(); break; }
+    case 'qday': { const p = pisteOf(rateCtx.id); if (!logToday().some(e => e.pick === p.id)) addLog({ type: 'piste', cands: [p.id], altFrom: p.altFrom, altTo: p.altTo, t: Date.now(), manual: true }); rateSheet(); break; }
+    case 'qwrong': rateCtx.correcting = !rateCtx.correcting; rateSheet(); break;
+    case 'qpick': { const log = S.log[todayKey()]; if (rateCtx.k != null) { const e = logToday()[rateCtx.k]; if (e) { e.pick = d.id; save(); } } rateCtx.id = d.id; rateCtx.correcting = false; rateSheet(); break; }
     case 'sos': if (confirm('Appeler le 112 (urgences) ?')) location.href = 'tel:112'; break;
     case 'close': closeSheet(); break;
     case 'open': sheetPeriod = 0; showChars = false; pisteSheet(d.id); break;
@@ -719,6 +847,7 @@ document.addEventListener('click', e => {
     case 'heart': S.hearts = S.hearts.includes(d.id) ? S.hearts.filter(h => h !== d.id) : [...S.hearts, d.id]; save(); pisteSheet(d.id); render(); break;
     case 'skied': addLog({ type: 'piste', cands: [d.id], altFrom: pisteOf(d.id).altFrom, altTo: pisteOf(d.id).altTo, t: Date.now(), manual: true }); toast('Ajoutée à ta journée'); break;
     case 'rf': S.rf[d.k] = d.k === 'budget' ? +d.v : d.v; save(); render(); break;
+    case 'rlevel': { S.rf[d.k] = +d.v; if (S.rf.lo > S.rf.hi) { if (d.k === 'lo') S.rf.hi = S.rf.lo; else S.rf.lo = S.rf.hi; } save(); render(); break; }
     case 'rcolor': S.rf.colors = S.rf.colors.includes(d.c) ? S.rf.colors.filter(c => c !== d.c) : [...S.rf.colors, d.c]; save(); render(); break;
     case 'plan': generate(!!d.next); break;
     case 'openstep': { const s = plan.steps[+d.i]; if (s.kind === 'piste') pisteSheet(s.o); else liftSheet(s.o); break; }
@@ -755,6 +884,7 @@ document.addEventListener('click', e => {
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'q') { S.filt.q = t.value; updateList(); }
+  else if (t.id === 'qrs') { $('#qrres').innerHTML = qrResults(); }
   else if (t.dataset.range === 'level') { S.level = +t.value; $('#lvl').textContent = t.value; save(); updateList(); }
   else if (t.dataset.range === 'level2') { S.level = +t.value; save(); }
 });
@@ -766,6 +896,12 @@ document.addEventListener('change', e => {
   else if (b === 'rend') { S.rf.end = t.value; save(); }
   else if (b === 'rwalk') { S.rf.walk = t.checked; save(); }
   else if (b === 'audio') { S.audio = t.checked; save(); }
+  else if (b === 'nenabled') { if (t.checked) enableNotif(); else { S.notif.enabled = false; save(); render(); } }
+  else if (b === 'nlift') { S.notif.lift = t.checked; save(); }
+  else if (b === 'nevening') { S.notif.evening = t.checked; save(); render(); }
+  else if (t.id === 'neve') { S.notif.eveningTime = t.value || '17:30'; S.pro.evening = false; save(); }
+  else if (t.id === 'nmax') { S.notif.max = +t.value; save(); }
+  else if (t.id === 'qother' && t.value) { rateCtx.id = t.value; rateCtx.k = null; rateCtx.correcting = false; rateSheet(); }
   else if (t.id === 'pseudo') { S.profile.pseudo = t.value.trim().slice(0, 30); save(); }
   else if (t.dataset.range === 'level2') { render(); }
   else if (t.id === 'manual' && t.value) { const p = pisteOf(t.value); addLog({ type: 'piste', cands: [p.id], altFrom: p.altFrom, altTo: p.altTo, t: Date.now(), manual: true }); render(); }
@@ -781,5 +917,5 @@ window.addEventListener('online', netState); window.addEventListener('offline', 
 setInterval(() => { if (document.visibilityState === 'visible' && $('#pocket').hidden) { const k = todayKey(); S.screen[k] = (S.screen[k] || 0) + 1; if (S.screen[k] % 10 === 0) save(); } }, 1000);
 
 $('#station').innerHTML = Object.values(DATA.stations).map(s => `<option value="${s.id}" ${s.id === S.station ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
-render(); netState();
+render(); netState(); resetPro(); handleDeepLink(location.hash); eveningCheck(); setInterval(eveningCheck, 60000);
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});

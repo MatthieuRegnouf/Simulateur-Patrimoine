@@ -80,6 +80,9 @@ const Engine = (() => {
     }
     return null;
   }
+  // Contexte pour les invitations : jamais pendant une descente ; « en remontée » = l'altitude monte d'au moins 60 m
+  const descending = tr => tr.dir === -1;
+  const climbGain = tr => tr.dir === 1 && tr.start ? Math.round(tr.ext - tr.start.alt) : 0;
   function close(station, tr, type, fix) {
     const seg = { type, altFrom: Math.round(tr.start.alt), altTo: Math.round(tr.ext), t: tr.extT, dist: tr.extDist - tr.start.dist, dur: (tr.extT - tr.start.t) / 60000 };
     // on repart de zéro : le segment suivant sera détecté depuis la position actuelle
@@ -97,6 +100,16 @@ const Engine = (() => {
     return { type: seg.type, cands: scored.slice(0, 4).map(c => c.x.id), altFrom: seg.altFrom, altTo: seg.altTo, t: seg.t, auto: true };
   }
 
+
+  /* ---------- Barème de difficulté : 5 niveaux = tranches de la note 1–10 déjà utilisée pour noter les pistes ---------- */
+  const LEVELS = [
+    { n: 1, label: 'Très facile', lo: 1, hi: 2 }, { n: 2, label: 'Facile', lo: 2, hi: 4 }, { n: 3, label: 'Intermédiaire', lo: 4, hi: 6 },
+    { n: 4, label: 'Difficile', lo: 6, hi: 8 }, { n: 5, label: 'Très difficile', lo: 8, hi: 10 }
+  ];
+  const levelOf = note => LEVELS.find(l => note <= l.hi) || LEVELS[4];                          // note 1–10 -> niveau 1–5
+  const levelRange = (a, b) => [LEVELS[Math.min(a, b) - 1].lo, LEVELS[Math.max(a, b) - 1].hi];    // niveaux 1–5 -> plage de notes
+  // Fiabilité d'une difficulté ressentie selon le nombre de votes : jamais présentée comme certaine quand elle est peu documentée
+  const reliability = n => n === 0 ? { key: 'est', text: 'estimée, aucun vote' } : n < 5 ? { key: 'low', text: `peu documentée, ${n} vote${n > 1 ? 's' : ''}` } : n < 15 ? { key: 'mid', text: `${n} votes` } : { key: 'good', text: `${n} votes` };
 
   /* ---------- Réseau (graph.js) et itinéraires ---------- */
   const WALK_KMH = 2.5;           // marche en chaussures de ski
@@ -130,8 +143,16 @@ const Engine = (() => {
   // Une piste est autorisée si elle n'est pas plus difficile que la plus difficile des couleurs choisies :
 // les couleurs plus faciles non cochées servent de liaisons (pénalisées), jamais l'inverse.
 const RANK_C = { green: 0, blue: 1, red: 2, black: 3 };
-const maxRank = o => Math.max(...o.colors.map(c => RANK_C[c]), -1);
-const arcAllowed = (a, o) => a.mode === 'walk' ? o.walk !== false : a.e.k === 'piste' ? RANK_C[a.e.c] <= maxRank(o) : true;
+const maxRank = o => Math.max(...(o.colors || []).map(c => RANK_C[c]), -1);
+// Mode « difficulté ressentie » (o.levelOf fourni) : la piste doit avoir une difficulté <= au maximum voulu, ET sa couleur officielle
+// ne doit pas dépasser ce maximum de plus de 2,5 points (garde-fou : des notes isolées ne rendent pas une noire « facile »).
+const arcAllowed = (a, o) => {
+  if (a.mode === 'walk') return o.walk !== false;
+  if (a.e.k !== 'piste') return !o.blocked || !o.blocked(a.e);
+  if (o.blocked && o.blocked(a.e)) return false;
+  if (o.levelOf) return o.levelOf(a.e).level <= o.hi && COLOR_LEVEL[a.e.c] <= o.hi + 2.5;
+  return RANK_C[a.e.c] <= maxRank(o);
+};
   const nodeName = n => n.label || `Carrefour à ${Math.round(n.alt / 10) * 10} m`;
 
   // Points de départ proposés : bas des remontées (là où aucune piste n'arrive), nommés d'après la remontée
@@ -192,7 +213,8 @@ const arcAllowed = (a, o) => a.mode === 'walk' ? o.walk !== false : a.e.k === 'p
           let sc = s.sc;
           if (a.mode === 'ski') {
             sc += reuse ? -c * 2 : c * (a.e.k === 'piste' ? 1 : 0.3);
-            if (a.e.k === 'piste' && !o.colors.includes(a.e.c)) sc -= c * 3;   // couleur non choisie : seulement en dernier recours
+            if (a.e.k === 'piste') { if (o.levelOf ? o.levelOf(a.e).level < o.lo - 0.5 : !o.colors.includes(a.e.c)) sc -= c * 3; }   // hors de la cible : seulement en dernier recours
+            if (o.pref) sc += o.pref(a.e) * c;                                    // préférences (coups de cœur, notes personnelles)
             if (a.e.k === 'piste' && a.e.n) { const same = chain(s, x => x.e.n === a.e.n); sc += !same ? 0.5 : (s.arc.e.n === a.e.n ? 0 : -6); }
           } else if (a.mode === 'walk') sc -= c * 3.5;
           else sc -= 0.2 + reuse * 3;
@@ -238,14 +260,14 @@ const arcAllowed = (a, o) => a.mode === 'walk' ? o.walk !== false : a.e.k === 'p
     });
     const totalF = steps.reduce((a, s) => a + s.minF, 0), pis = steps.filter(s => s.kind === 'piste');
     return {
-      steps, total: Math.round(totalF), opt: { start: o.start, end: o.end ?? o.start, budget: o.budget, speed, colors: o.colors, walk: o.walk !== false, variant: o.variant || 0 },
+      steps, total: Math.round(totalF), opt: { start: o.start, end: o.end ?? o.start, budget: o.budget, speed, colors: o.colors, walk: o.walk !== false, variant: o.variant || 0, mode: o.levelOf ? 'felt' : 'color', lo: o.lo, hi: o.hi },
       km: Math.round(pis.reduce((a, s) => a + s.m, 0) / 100) / 10, descents: pis.length,
       down: pis.reduce((a, s) => a + Math.max(0, s.altFrom - s.altTo), 0), up: steps.filter(s => s.kind === 'lift').reduce((a, s) => a + Math.max(0, s.altTo - s.altFrom), 0),
       walkMin: Math.round(steps.filter(s => s.kind === 'walk').reduce((a, s) => a + s.minF, 0)),
-      offColor: Math.round(pis.filter(s => !o.colors.includes(s.color)).reduce((a, s) => a + s.minF, 0))
+      offColor: o.levelOf ? 0 : Math.round(pis.filter(s => !o.colors.includes(s.color)).reduce((a, s) => a + s.minF, 0))
     };
   }
 
-  return { buildNet, startPoints, nearestNode, planRoute, nodeName, arcMin, WALK_KMH, SPEED_KMH, COLOR_LABEL, COLOR_LEVEL, LIFT_GAP_M, label, fit, estMin, stepMin, drop, gap, summary, distM, newTracker, onFix };
+  return { descending, climbGain, LEVELS, levelOf, levelRange, reliability, buildNet, startPoints, nearestNode, planRoute, nodeName, arcMin, WALK_KMH, SPEED_KMH, COLOR_LABEL, COLOR_LEVEL, LIFT_GAP_M, label, fit, estMin, stepMin, drop, gap, summary, distM, newTracker, onFix };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;
