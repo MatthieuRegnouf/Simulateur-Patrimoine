@@ -1,112 +1,51 @@
-/* Logique pure (sans DOM) : notation, niveaux, calcul d'itinéraire, détection GPS. */
+/* Logique pure (sans DOM) : notation, niveaux, durées, enchaînement d'étapes, détection GPS par altitude. */
 const Engine = (() => {
-  const SPEED = { slow: 1.35, medium: 1, fast: 0.75 };
+  // Vitesse moyenne de descente (km/h), pauses comprises. Hypothèse d'estimation, pas une donnée officielle.
+  const SPEED_KMH = { slow: 12, medium: 18, fast: 26 };
   const COLOR_LABEL = { green: 'Verte', blue: 'Bleue', red: 'Rouge', black: 'Noire' };
+  // Niveau indicatif d'une piste d'après sa couleur officielle (utilisé seulement tant qu'elle n'est pas notée)
+  const COLOR_LEVEL = { green: 2, blue: 4, red: 6.5, black: 8.5 };
+  const LIFT_GAP_M = 80;          // écart d'altitude toléré pour dire que deux étapes s'enchaînent
+  const MATCH_TOL_M = 120;        // tolérance GPS (altitude) pour reconnaître une piste ou une remontée
 
-  // Seuils de la slide « Système de notation »
+  // Seuils de la présentation. Sans vote, aucune note n'existe : on n'invente rien.
   function label(score) {
+    if (score == null) return { key: 'none', text: 'Pas encore noté', icon: '' };
     if (score < 4) return { key: 'easy', text: 'Facile', icon: '🟢' };
     if (score < 7.5) return { key: 'mid', text: 'Moyenne', icon: '🟠' };
     return { key: 'hard', text: 'Difficile', icon: '🔴' };
   }
 
-  // Note « objective » estimée depuis les données terrain (pente, largeur)
-  function objectiveScore(p) {
-    const s = 1 + (p.slope - 4) * 0.28 + (p.maxSlope - p.slope) * 0.05 + (p.width < 20 ? 0.6 : 0);
-    return Math.min(10, Math.max(1, s));
+  // Adéquation entre la difficulté d'une piste (sa note, ou son estimation) et le niveau de l'utilisateur
+  function fit(lv, level, basis) {
+    const d = lv - level, b = basis ? ` (${basis})` : '';
+    if (d <= 0.5) return { key: 'ok', text: 'À ton niveau' + b };
+    if (d <= 1.5) return { key: 'progress', text: 'Pour progresser' + b };
+    return { key: 'hard', text: 'Trop dur pour toi' + b };
   }
 
-  // Note affichée = mélange communauté / objectif, la communauté pèse plus avec le nombre de votes
-  function blended(p, myVote) {
-    const votes = p.votes + (myVote ? 1 : 0);
-    const comm = myVote ? (p.comm * p.votes + myVote) / votes : p.comm;
-    const w = votes / (votes + 30);
-    const obj = objectiveScore(p);
-    return { score: Math.round((w * comm + (1 - w) * obj) * 10) / 10, comm: Math.round(comm * 10) / 10, obj: Math.round(obj * 10) / 10, votes, reliable: votes >= 30 };
+  // Durée d'une descente : estimée d'après la longueur (null si la longueur est inconnue)
+  function estMin(p, speed) { return p.km ? Math.max(1, Math.round(p.km / SPEED_KMH[speed] * 60)) : null; }
+  const stepMin = (kind, ref, speed) => kind === 'lift' ? (ref.min ? Math.round(ref.min) : null) : estMin(ref, speed);
+  const drop = p => p.altFrom && p.altTo ? p.altFrom - p.altTo : null;
+
+  // Enchaînement : l'arrivée d'une étape doit être (à peu près) à l'altitude de départ de la suivante.
+  function gap(prev, next) {
+    const a = prev.altTo, b = next.altFrom;
+    if (!a || !b) return { ok: null, d: null };
+    const d = Math.abs(a - b);
+    return { ok: d <= LIFT_GAP_M, d };
   }
 
-  // Adéquation avec le niveau de l'utilisateur (sécurité + progression)
-  function fit(score, level) {
-    const d = score - level;
-    if (d <= 0.5) return { key: 'ok', text: 'À ton niveau' };
-    if (d <= 1.5) return { key: 'progress', text: 'Pour progresser' };
-    return { key: 'hard', text: 'Trop dur pour toi' };
-  }
-
-  function speedMin(p, speed) { return Math.round(p.min * SPEED[speed]); }
-
-  // Attente simulée selon l'heure (en prod : flux temps réel des remontées)
-  function waitMin(lift, hour) {
-    const f = hour < 9.5 ? 1.2 : hour < 11.5 ? 1.0 : hour < 14 ? 0.5 : hour < 16 ? 0.9 : 0.4;
-    return Math.max(1, Math.round(lift.wait * f));
-  }
-
-  /* Planificateur : cherche le meilleur enchaînement remontée/piste qui
-     remplit la durée voulue, reste proche de la difficulté visée et finit en bas. */
-  function plan(station, opt) {
-    const { start = station.base, budget = 120, target = 6, speed = 'medium', avoidBlack = false,
-            avoidCrowded = false, hour = 10, closed = [] } = opt;
-    const end = station.base;
-    const maxScore = target + 1.5;
-    const pistesFrom = {}, liftsFrom = {};
-    station.pistes.forEach(p => {
-      if (closed.includes(p.id)) return;
-      if (avoidBlack && p.color === 'black') return;
-      if (avoidCrowded && p.crowd > 0.65) return;
-      if (blended(p).score > maxScore) return;
-      (pistesFrom[p.from] = pistesFrom[p.from] || []).push(p);
+  function summary(steps, speed) {
+    let total = 0, unknown = 0, km = 0, descents = 0, up = 0, down = 0;
+    steps.forEach(s => {
+      const m = stepMin(s.kind, s.ref, speed);
+      if (m == null) unknown++; else total += m;
+      if (s.kind === 'piste') { descents++; km += s.ref.km || 0; down += drop(s.ref) || 0; }
+      else up += s.ref.altFrom && s.ref.altTo ? s.ref.altTo - s.ref.altFrom : 0;
     });
-    station.lifts.forEach(l => {
-      if (closed.includes(l.id)) return;
-      if (avoidCrowded && waitMin(l, hour) > 8) return;
-      (liftsFrom[l.from] = liftsFrom[l.from] || []).push(l);
-    });
-
-    let best = null, bestScore = Infinity, visits = 0;
-    const steps = [], used = new Set();
-    function score(total) {
-      const ps = steps.filter(s => s.kind === 'piste');
-      if (!ps.length) return Infinity;
-      const skiT = ps.reduce((a, s) => a + s.min, 0);
-      const diff = ps.reduce((a, s) => a + Math.abs(s.score - target) * s.min, 0) / skiT;
-      const liftShare = 1 - skiT / total;
-      return Math.abs(total - budget) / budget * 4 + diff * 0.6 + Math.max(0, liftShare - 0.45) * 3;
-    }
-    function dfs(node, total) {
-      if (++visits > 250000) return;
-      if (node === end && total >= budget * 0.75 && steps.some(s => s.kind === 'piste')) {
-        const sc = score(total);
-        if (sc < bestScore) { bestScore = sc; best = { steps: steps.slice(), total }; }
-      }
-      for (const l of liftsFrom[node] || []) {
-        const w = waitMin(l, hour), t = l.min + w;
-        if (total + t > budget) continue;
-        steps.push({ kind: 'lift', ref: l, min: l.min, wait: w, from: l.from, to: l.to });
-        dfs(l.to, total + t);
-        steps.pop();
-      }
-      for (const p of pistesFrom[node] || []) {
-        if (used.has(p.id)) continue;
-        const t = speedMin(p, speed);
-        if (total + t > budget) continue;
-        used.add(p.id);
-        steps.push({ kind: 'piste', ref: p, min: t, score: blended(p).score, from: p.from, to: p.to });
-        dfs(p.to, total + t);
-        steps.pop(); used.delete(p.id);
-      }
-    }
-    dfs(start, 0);
-    if (!best) return null;
-    const pistes = best.steps.filter(s => s.kind === 'piste');
-    const skiMin = pistes.reduce((a, s) => a + s.min, 0);
-    return {
-      stationId: station.id, steps: best.steps, total: best.total,
-      km: Math.round(pistes.reduce((a, s) => a + s.ref.km, 0) * 10) / 10,
-      descents: pistes.length,
-      avg: Math.round(pistes.reduce((a, s) => a + s.score * s.min, 0) / skiMin * 10) / 10,
-      waitTotal: best.steps.reduce((a, s) => a + (s.wait || 0), 0),
-      opt: { start, budget, target, speed, avoidBlack, avoidCrowded }
-    };
+    return { total, unknown, km: Math.round(km * 10) / 10, descents, up, down };
   }
 
   function distM(a, b) {
@@ -115,30 +54,227 @@ const Engine = (() => {
     const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(x));
   }
-  function nearestNode(station, pos, radius = 150) {
-    let best = null, bd = Infinity;
-    for (const [id, n] of Object.entries(station.nodes)) {
-      const d = distM(n, pos);
-      if (d < bd) { bd = d; best = id; }
-    }
-    return bd <= radius ? best : null;
-  }
 
-  /* Détection sans écran : chaque fix GPS passe ici. Quand on passe d'un point clé A à un point B
-     reliés par une/des piste(s) ou remontée(s), on enregistre un segment. */
-  function onFix(station, state, pos, t) {
-    const node = nearestNode(station, pos);
-    if (!node || node === state.lastNode) return null;
-    const prev = state.lastNode;
-    state.lastNode = node; state.lastTime = t;
-    if (!prev) return null;
-    const pistes = station.pistes.filter(p => p.from === prev && p.to === node);
-    if (pistes.length) return { type: 'piste', cands: pistes.map(p => p.id), from: prev, to: node, t, auto: true };
-    const lifts = station.lifts.filter(l => l.from === prev && l.to === node);
-    if (lifts.length) return { type: 'lift', cands: lifts.map(l => l.id), from: prev, to: node, t, auto: true };
+  /* Détection sans écran. On suit l'altitude GPS : une descente (ou une montée) commence quand l'altitude
+     s'éloigne de 60 m de son extrême, et se termine quand elle remonte (descend) de 40 m. Le segment est
+     ensuite rapproché des pistes (ou remontées) dont les altitudes départ/arrivée correspondent. */
+  function newTracker() { return { dir: 0, ext: null, extT: 0, start: null, dist: 0, last: null }; }
+  function onFix(station, tr, fix) {
+    if (fix.alt == null || isNaN(fix.alt)) return null;
+    tr.alt = tr.alt == null ? fix.alt : tr.alt * 0.5 + fix.alt * 0.5;       // lissage
+    const a = tr.alt;
+    if (tr.last && fix.lat != null) tr.dist += distM(tr.last, fix);
+    tr.last = fix.lat != null ? { lat: fix.lat, lng: fix.lng } : null;
+    if (tr.ext == null) { tr.ext = a; tr.extT = fix.t; tr.extDist = tr.dist; return null; }
+    if (tr.dir === 0) {
+      if (a <= tr.ext - 60) { tr.dir = -1; tr.start = { alt: tr.ext, t: tr.extT, dist: tr.extDist }; tr.ext = a; }
+      else if (a >= tr.ext + 60) { tr.dir = 1; tr.start = { alt: tr.ext, t: tr.extT, dist: tr.extDist }; tr.ext = a; }
+      return null;
+    }
+    if (tr.dir === -1) {
+      if (a < tr.ext) { tr.ext = a; tr.extT = fix.t; tr.extDist = tr.dist; return null; }
+      if (a >= tr.ext + 40) return close(station, tr, 'piste', fix);
+    } else {
+      if (a > tr.ext) { tr.ext = a; tr.extT = fix.t; tr.extDist = tr.dist; return null; }
+      if (a <= tr.ext - 40) return close(station, tr, 'lift', fix);
+    }
     return null;
   }
+  // Contexte pour les invitations : jamais pendant une descente ; « en remontée » = l'altitude monte d'au moins 60 m
+  const descending = tr => tr.dir === -1;
+  const climbGain = tr => tr.dir === 1 && tr.start ? Math.round(tr.ext - tr.start.alt) : 0;
+  function close(station, tr, type, fix) {
+    const seg = { type, altFrom: Math.round(tr.start.alt), altTo: Math.round(tr.ext), t: tr.extT, dist: tr.extDist - tr.start.dist, dur: (tr.extT - tr.start.t) / 60000 };
+    // on repart de zéro : le segment suivant sera détecté depuis la position actuelle
+    tr.start = null; tr.dir = 0; tr.ext = tr.alt; tr.extT = fix.t; tr.extDist = tr.dist;
+    return Math.abs(seg.altFrom - seg.altTo) >= 100 ? match(station, seg) : null;
+  }
+  function match(station, seg) {
+    const list = seg.type === 'piste' ? station.pistes : station.lifts;
+    const scored = list.filter(x => x.altFrom && x.altTo).map(x => {
+      const cost = Math.abs(x.altFrom - seg.altFrom) + Math.abs(x.altTo - seg.altTo);
+      let ok = Math.abs(x.altFrom - seg.altFrom) <= MATCH_TOL_M && Math.abs(x.altTo - seg.altTo) <= MATCH_TOL_M;
+      if (ok && seg.type === 'piste' && x.km && seg.dist > 0) { const r = seg.dist / (x.km * 1000); ok = r >= 0.5 && r <= 1.6; }
+      return { x, cost, ok };
+    }).filter(c => c.ok).sort((a, b) => a.cost - b.cost);
+    return { type: seg.type, cands: scored.slice(0, 4).map(c => c.x.id), altFrom: seg.altFrom, altTo: seg.altTo, t: seg.t, t0: seg.t - (seg.dur || 0) * 60000, auto: true };
+  }
 
-  return { SPEED, COLOR_LABEL, label, objectiveScore, blended, fit, speedMin, waitMin, plan, distM, nearestNode, onFix };
+
+  /* ---------- Barème de difficulté : 5 niveaux = tranches de la note 1–10 déjà utilisée pour noter les pistes ---------- */
+  const LEVELS = [
+    { n: 1, label: 'Très facile', lo: 1, hi: 2 }, { n: 2, label: 'Facile', lo: 2, hi: 4 }, { n: 3, label: 'Intermédiaire', lo: 4, hi: 6 },
+    { n: 4, label: 'Difficile', lo: 6, hi: 8 }, { n: 5, label: 'Très difficile', lo: 8, hi: 10 }
+  ];
+  const levelOf = note => LEVELS.find(l => note <= l.hi) || LEVELS[4];                          // note 1–10 -> niveau 1–5
+  const levelRange = (a, b) => [LEVELS[Math.min(a, b) - 1].lo, LEVELS[Math.max(a, b) - 1].hi];    // niveaux 1–5 -> plage de notes
+  // Fiabilité d'une difficulté ressentie selon le nombre de votes : jamais présentée comme certaine quand elle est peu documentée
+  const reliability = n => n === 0 ? { key: 'est', text: 'estimée, aucun vote' } : n < 5 ? { key: 'low', text: `peu documentée, ${n} vote${n > 1 ? 's' : ''}` } : n < 15 ? { key: 'mid', text: `${n} votes` } : { key: 'good', text: `${n} votes` };
+
+  /* ---------- Réseau (graph.js) et itinéraires ---------- */
+  const WALK_KMH = 2.5;           // marche en chaussures de ski
+  const decode = g => { const out = []; let la = 0, lo = 0; for (let i = 0; i < g.length; i += 2) { la += g[i]; lo += g[i + 1]; out.push([la / 1e5, lo / 1e5]); } return out; };
+
+  function buildNet(graph) {
+    const nodes = graph.nodes.map(([lat, lng, alt, label], i) => ({ i, lat, lng, alt, label, out: [] }));
+    const edges = graph.edges.map((e, id) => ({ ...e, id, geom: null }));
+    const geom = e => e.geom || (e.geom = decode(e.g));
+    const arcs = [];
+    const add = (e, from, to, mode, rev) => { const a = { e, from, to, mode, rev, len: e.m, gain: Math.max(0, nodes[to].alt - nodes[from].alt) }; arcs.push(a); nodes[from].out.push(a); };
+    edges.forEach(e => {
+      if (e.k === 'lift') add(e, e.a, e.b, 'lift', false);
+      else if (e.k === 'piste') add(e, e.a, e.b, 'ski', false);
+      else {
+        [[e.a, e.b, false], [e.b, e.a, true]].forEach(([f, t, rev]) => {
+          const drop = nodes[f].alt - nodes[t].alt;
+          add(e, f, t, e.k === 'link' && drop / Math.max(e.m, 1) >= 0.04 ? 'ski' : 'walk', rev);
+        });
+      }
+    });
+    return { nodes, edges, arcs, geom, osm: graph.osm };
+  }
+
+  // Durée d'un arc (minutes) selon le profil de vitesse
+  function arcMin(a, speed) {
+    if (a.mode === 'lift') return Math.max(1, a.e.t);
+    if (a.mode === 'ski') return Math.max(0.3, a.len / 1000 / (SPEED_KMH[speed] * (a.e.k === 'link' ? 0.6 : 1)) * 60);
+    return Math.max(0.3, a.len / 1000 / WALK_KMH * 60 + a.gain / 10);
+  }
+  // Une piste est autorisée si elle n'est pas plus difficile que la plus difficile des couleurs choisies :
+// les couleurs plus faciles non cochées servent de liaisons (pénalisées), jamais l'inverse.
+const RANK_C = { green: 0, blue: 1, red: 2, black: 3 };
+const maxRank = o => Math.max(...(o.colors || []).map(c => RANK_C[c]), -1);
+// Mode « difficulté ressentie » (o.levelOf fourni) : la piste doit avoir une difficulté <= au maximum voulu, ET sa couleur officielle
+// ne doit pas dépasser ce maximum de plus de 2,5 points (garde-fou : des notes isolées ne rendent pas une noire « facile »).
+const arcAllowed = (a, o) => {
+  if (a.mode === 'walk') return o.walk !== false;
+  if (a.e.k !== 'piste') return !o.blocked || !o.blocked(a.e);
+  if (o.blocked && o.blocked(a.e)) return false;
+  if (o.levelOf) return o.levelOf(a.e).level <= o.hi && COLOR_LEVEL[a.e.c] <= o.hi + 2.5;
+  return RANK_C[a.e.c] <= maxRank(o);
+};
+  const nodeName = n => n.label || `Carrefour à ${Math.round(n.alt / 10) * 10} m`;
+
+  // Points de départ proposés : bas des remontées (là où aucune piste n'arrive), nommés d'après la remontée
+  function startPoints(net) {
+    const hasIn = new Set(net.arcs.filter(a => a.mode === 'ski').map(a => a.to)), by = new Map();
+    net.edges.filter(e => e.k === 'lift' && e.n && !hasIn.has(e.a) && net.nodes[e.a].alt > 0).forEach(e => {
+      const g = by.get(e.a) || { i: e.a, names: [], alt: Math.round(net.nodes[e.a].alt) };
+      if (!g.names.includes(e.n)) g.names.push(e.n); by.set(e.a, g);
+    });
+    return [...by.values()].map(g => ({ i: g.i, alt: g.alt, name: 'Départ ' + g.names.join(' / ') })).sort((a, b) => a.name.localeCompare(b.name));
+  }
+  function nearestNode(net, lat, lng) {
+    let best = null, bd = Infinity;
+    net.nodes.forEach(n => { const d = distM({ lat, lng }, n); if (d < bd) { bd = d; best = n; } });
+    return best;
+  }
+
+  // PRNG déterministe : une même "variante" redonne le même itinéraire (utile pour le partage)
+  const rng = seed => () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+
+  /* Cherche le meilleur enchaînement (remontées, pistes, liaisons, marche) qui revient au point d'arrivée
+     en un temps proche de la durée voulue. Recherche par tranches de 30 s, en gardant les meilleurs états de chaque tranche.
+     Récompense : minutes skiées, pistes nouvelles. Pénalise : marche, pistes ou remontées déjà refaites. */
+  function planRoute(net, o) {
+    const speed = o.speed || 'medium', budget = o.budget || 120, cap = budget * 1.08, K = 60, rand = rng(1 + (o.variant || 0) * 7919);
+    const end = o.end ?? o.start, jitter = o.variant ? 0.4 : 0;
+    // temps minimal pour rejoindre l'arrivée (Dijkstra sur le graphe inversé)
+    const rev = net.nodes.map(() => []);
+    net.arcs.forEach(a => { if (arcAllowed(a, o)) rev[a.to].push(a); });
+    const toEnd = net.nodes.map(() => Infinity); toEnd[end] = 0;
+    const pq = [[0, end]];
+    while (pq.length) {
+      pq.sort((x, y) => x[0] - y[0]); const [d, u] = pq.shift();
+      if (d > toEnd[u]) continue;
+      for (const a of rev[u]) { const nd = d + arcMin(a, speed); if (nd < toEnd[a.from]) { toEnd[a.from] = nd; pq.push([nd, a.from]); } }
+    }
+    if (toEnd[o.start] === Infinity) return { error: 'unreachable' };
+    const chain = (s, f) => { let n = 0; for (let x = s; x && x.arc; x = x.prev) if (f(x.arc)) n++; return n; };
+    const buckets = Array.from({ length: Math.ceil(cap * 2) + 4 }, () => []);
+    buckets[0].push({ n: o.start, t: 0, sc: 0, prev: null, arc: null, ps: 0 });
+    let best = null, bestObj = -Infinity;
+    for (let b = 0; b < buckets.length; b++) {
+      const bucket = buckets[b]; if (!bucket.length) continue;
+      bucket.sort((x, y) => y.sc - x.sc);
+      const perNode = {}, keep = [];
+      for (const s of bucket) { perNode[s.n] = (perNode[s.n] || 0) + 1; if (perNode[s.n] <= 3 && keep.length < K) keep.push(s); }
+      for (const s of keep) {
+        if (s.n === end && s.ps > 0 && s.t >= budget * 0.7) {
+          const obj = s.sc - Math.abs(s.t - budget) * 2;
+          if (obj > bestObj) { bestObj = obj; best = s; }
+        }
+        for (const a of net.nodes[s.n].out) {
+          if (!arcAllowed(a, o) || (s.arc && s.arc.e.id === a.e.id)) continue;
+          const c = arcMin(a, speed);
+          // attente : une seule fois par embarquement (pas à chaque tronçon d'une même remontée) et seulement si une valeur est connue ou estimée
+          const w = a.mode === 'lift' && o.waitOf && !(s.arc && s.arc.mode === 'lift' && s.arc.e.n === a.e.n) ? (o.waitOf(a.e)?.min || 0) : 0, t = s.t + c + w;
+          if (a.mode === 'walk' && c > 10) continue;   // pas de longue marche en chaussures de ski
+          if (t + toEnd[a.to] > cap) continue;
+          const reuse = chain(s, x => x.e.id === a.e.id);
+          let sc = s.sc;
+          if (a.mode === 'ski') {
+            sc += reuse ? -c * 2 : c * (a.e.k === 'piste' ? 1 : 0.3);
+            if (a.e.k === 'piste') { if (o.levelOf ? o.levelOf(a.e).level < o.lo - 0.5 : !o.colors.includes(a.e.c)) sc -= c * 3; }   // hors de la cible : seulement en dernier recours
+            if (o.pref) sc += o.pref(a.e) * c;                                    // préférences (coups de cœur, notes personnelles)
+            if (a.e.k === 'piste' && a.e.n) { const same = chain(s, x => x.e.n === a.e.n); sc += !same ? 0.5 : (s.arc.e.n === a.e.n ? 0 : -6); }
+          } else if (a.mode === 'walk') sc -= c * 3.5;
+          else sc -= 0.2 + reuse * 3 + w * 0.8;
+          if (o.pref && a.mode === 'lift') sc += o.pref(a.e);
+          if (jitter) sc += rand() * jitter * c;
+          buckets[Math.min(buckets.length - 1, Math.max(b + 1, Math.ceil(t * 2)))].push({ n: a.to, t, sc, prev: s, arc: a, ps: s.ps + (a.e.k === 'piste' ? 1 : 0) });
+        }
+      }
+    }
+    if (!best) return { error: 'none' };
+    const arcsSeq = []; for (let s = best; s.prev; s = s.prev) arcsSeq.unshift(s.arc);
+    return buildSteps(net, arcsSeq, o, speed);
+  }
+
+  // Regroupe les arcs consécutifs d'une même piste / remontée / marche en étapes lisibles
+  function buildSteps(net, seq, o, speed) {
+    const steps = [];
+    seq.forEach(a => {
+      const kind = a.mode === 'lift' ? 'lift' : a.e.k === 'piste' ? 'piste' : a.mode === 'walk' ? 'walk' : 'link';
+      const name = kind === 'piste' || kind === 'lift' ? a.e.n : '';
+      const last = steps[steps.length - 1];
+      let pts = net.geom(a.e); if (a.rev) pts = pts.slice().reverse();
+      const min = arcMin(a, speed), wt = kind === 'lift' && o.waitOf ? o.waitOf(a.e) : null;
+      const same = last && last.kind === kind && (kind === 'walk' || kind === 'link' || last.name === name || (kind === 'piste' && !name));
+      if (same) {
+        if (kind === 'lift') { last.via.push(last.to); last.rideF += min; last.minF += min; last.y = last.y || a.e.y; } else last.minF += min;
+        last.m += a.len; last.to = a.to; last.coords = last.coords.concat(pts.slice(1)); last.edges.push(a.e.id);
+      } else steps.push({ kind, name, color: a.e.c || null, o: a.e.o || null, y: a.e.y || null, from: a.from, to: a.to, minF: min + (wt?.min || 0), rideF: kind === 'lift' ? min : 0, wait: wt, via: [], m: a.len, coords: pts.slice(), edges: [a.e.id] });
+    });
+    // un tronçon de piste de moins de ~1 min 30 est absorbé par la piste précédente (ou suivante) : étapes plus lisibles
+    for (let i = 0; i < steps.length; i++) {
+      const s = steps[i];
+      if (s.kind !== 'piste' || s.minF >= 1.5) continue;
+      const tgt = steps[i - 1]?.kind === 'piste' ? steps[i - 1] : steps[i + 1]?.kind === 'piste' ? steps[i + 1] : null;
+      if (!tgt) continue;
+      if (tgt === steps[i - 1]) { tgt.minF += s.minF; tgt.m += s.m; tgt.to = s.to; tgt.coords = tgt.coords.concat(s.coords.slice(1)); tgt.edges.push(...s.edges); }
+      else { tgt.minF += s.minF; tgt.m += s.m; tgt.from = s.from; tgt.coords = s.coords.concat(tgt.coords.slice(1)); tgt.edges.unshift(...s.edges); tgt.name = tgt.name || s.name; }
+      steps.splice(i, 1); i--;
+    }
+    for (let i = steps.length - 1; i >= 0; i--) if (steps[i].kind === 'walk' && steps[i].m < 25 && steps.length > 1) steps.splice(i, 1);   // raccord de 0 m : inutile à l'écran
+    steps.forEach(s => {
+      s.min = Math.max(1, Math.round(s.minF)); s.rideMin = Math.round(s.rideF || 0); s.waitMin = s.wait ? Math.round(s.wait.min) : null;
+      s.viaNames = (s.via || []).map(n => nodeName(net.nodes[n])); s.altFrom = Math.round(net.nodes[s.from].alt); s.altTo = Math.round(net.nodes[s.to].alt);
+      s.fromName = nodeName(net.nodes[s.from]); s.toName = nodeName(net.nodes[s.to]);
+    });
+    const totalF = steps.reduce((a, s) => a + s.minF, 0), pis = steps.filter(s => s.kind === 'piste'), lf = steps.filter(s => s.kind === 'lift');
+    const sum = (l, f) => Math.round(l.reduce((a, s) => a + f(s), 0));
+    const times = { descent: sum(pis, s => s.minF), link: sum(steps.filter(s => s.kind === 'walk' || s.kind === 'link'), s => s.minF), ride: sum(lf, s => s.rideF), wait: sum(lf, s => s.wait?.min || 0),
+      lifts: lf.length, waitKnown: lf.filter(s => s.wait).length };
+    return {
+      steps, total: Math.round(totalF), times, opt: { start: o.start, end: o.end ?? o.start, wait: !!o.waitOf, budget: o.budget, speed, colors: o.colors, walk: o.walk !== false, variant: o.variant || 0, mode: o.levelOf ? 'felt' : 'color', lo: o.lo, hi: o.hi },
+      km: Math.round(pis.reduce((a, s) => a + s.m, 0) / 100) / 10, descents: pis.length,
+      down: pis.reduce((a, s) => a + Math.max(0, s.altFrom - s.altTo), 0), up: steps.filter(s => s.kind === 'lift').reduce((a, s) => a + Math.max(0, s.altTo - s.altFrom), 0),
+      walkMin: Math.round(steps.filter(s => s.kind === 'walk').reduce((a, s) => a + s.minF, 0)),
+      offColor: o.levelOf ? 0 : Math.round(pis.filter(s => !o.colors.includes(s.color)).reduce((a, s) => a + s.minF, 0))
+    };
+  }
+
+  return { descending, climbGain, LEVELS, levelOf, levelRange, reliability, buildNet, startPoints, nearestNode, planRoute, nodeName, arcMin, WALK_KMH, SPEED_KMH, COLOR_LABEL, COLOR_LEVEL, LIFT_GAP_M, label, fit, estMin, stepMin, drop, gap, summary, distM, newTracker, onFix };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;

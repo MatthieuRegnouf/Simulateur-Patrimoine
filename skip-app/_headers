@@ -1,0 +1,11 @@
+/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  Permissions-Policy: geolocation=(self), camera=(), microphone=()
+
+/sw.js
+  Cache-Control: no-cache
+
+/basemap/*
+  Cache-Control: public, max-age=86400

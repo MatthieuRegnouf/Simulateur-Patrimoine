@@ -9,19 +9,71 @@ cd skip-app && python3 -m http.server 8000   # puis ouvrir http://localhost:8000
 Servie en HTTPS, l'appli s'installe sur l'écran d'accueil (Android : « Installer », iPhone : Partager → « Sur l'écran d'accueil ») et fonctionne hors ligne. Le GPS exige HTTPS (ou localhost).
 
 ## Fonctionnalités
-| Slide | Fonction |
-|---|---|
-| Notation | Note 1–10 (communauté + pente/largeur), Facile < 4 · Moyenne 4–7,5 · Difficile ≥ 7,5, vote en 1 tap, « moyenne basée sur N votes » |
-| Coups de cœur | Cœur, compteur, « Top coups de cœur » |
-| Sécurité/progression | Niveau personnel : « à ton niveau / pour progresser / trop dur » |
-| Itinéraire | Durée, difficulté, vitesse lent/moyen/rapide, éviter noires et foule, attente estimée, carte schématique |
-| Hors ligne | Itinéraire téléchargeable, alerte de fermeture au retour du réseau |
-| Problématique écran | Détection GPS des descentes, mode poche, retour vocal/vibration, vote le soir, compteur de temps d'écran, guidage audio |
-| Rencontres | Profil, partenaires compatibles, discussion de station |
-| Concurrents | Onglet SKIP : comparatif Skiinfo, Skitude/Strava, Skiif |
+- **Pistes et remontées** : les 111 pistes et 65 remontées de l'Espace Alpe d'Huez (nom, couleur officielle, longueur, altitudes, durée des remontées), recherche sans accent, filtre par couleur et par secteur.
+- **Notation** : chaque carte de piste affiche « Difficulté : 7,4/10 · 136 votes » ; sans vote, « Difficulté estimée : 6/10 » (pastille en pointillés, d'après la couleur officielle et la pente). Vote en 1 tap (échelle 1–10), conditions facultatives en un 2e tap (damée, poudreuse, transformée, dure/verglacée, bosses, peu de neige), effet immédiat sur la note. Note globale = moyenne des votes mélangée à l'estimation objective (poids de l'estimation = 8 votes). Filtres de période discrets (24 h, 3 j, 7 j, 30 j) avec tendance sur 3 jours.
+- **Caractéristiques** (bouton repliable sur la fiche) : pente moyenne et maximale, exposition, niveau technique estimé, état récent, neige habituelle (≥ 3 votes), longueur, altitudes, durée, repères de sécurité. Largeur : non fournie par la station.
+- **Sécurité et progression** : niveau personnel, badges « à ton niveau / pour progresser / trop dur », mode « 🎯 Pour moi » (pistes un cran au-dessus d'abord, trop dures masquées), avertissement de neige dure signalée.
+- **Coups de cœur**, **Pistes et remontées** : liste complète, recherche sans accent, filtres couleur et secteur.
+- **Mon itinéraire** : départ, arrivée, durée (1 h à 4 h), vitesse ; difficulté choisie soit par **difficulté ressentie** (barème 1–5 = tranches de la note 1–10, plage « de… à… »), soit par couleurs officielles. La couleur officielle, la difficulté ressentie (avec nombre de votes et fiabilité) et la difficulté recherchée sont affichées séparément ; la couleur reste un garde-fou. Durées décomposées : descente / liaison / remontée (trajet) / attente, avec la source de l'attente (exploitant, signalement, moyenne historique, estimation, indisponible). Consignes d'étape liées au parcours (remontée, station d'arrivée, stations intermédiaires déduites du réseau, suite). « Pourquoi cet itinéraire ? » et limites. Suggestions personnalisées (niveau, notes, coups de cœur, météo, ouverture, attentes). Carte réelle, hors ligne, guidage audio, partage.
+- **Invitations à noter** : « Alors, cette piste, tu l'as trouvée difficile ? », un tap ouvre la fiche (noter, ajouter à la journée, coup de cœur, corriger la piste). Pendant la remontée (si détectée, appli ouverte) et en fin de journée ; consentement, plafond, jamais en descente, jamais deux fois, jamais pour une piste déjà notée.
+- **Météo** : prévisions jour par jour sur 9 jours pour la station (1860 m) et le sommet (3000 m), heure par heure pour la journée, avec cache hors ligne. Source : MET Norway (modèle météo public, lecture directe depuis l'appli). Conseils vent / neige fraîche / froid affichés seulement en saison.
+- **Ma journée** : le GPS suit l'altitude et reconnaît les descentes et remontées dont les altitudes correspondent ; en cas d'hésitation entre plusieurs pistes, tu choisis le soir. Mode poche (écran noir, retour vocal et vibration), vote de fin de journée, compteur de temps d'écran.
+- **Rencontres** : profil (pseudo, ski/snowboard, niveau, statut, envies), liens réels vers Instagram, Snapchat, Facebook, Strava, partage de profil / parcours / coups de cœur par message (WhatsApp, SMS…), ajout d'un ami en collant son message, chat général du jour.
+- **SKIP** : comparatif Skiinfo, Skitude/Strava, Skiif.
 
-## Limites (démo)
-- Stations, notes, votes, attentes et positions sont **fictifs** (`data.js`). Il manque un backend (votes partagés, chat, plans officiels, remontées en temps réel).
-- La carte est un schéma, pas un fond GPS. Pour de vraies cartes hors ligne, prévoir MapLibre + tuiles.
-- Pour publier sur les stores : empaqueter avec Capacitor.
-- `engine.js` (calcul de note, itinéraires, détection) est testable sous Node sans navigateur.
+## Données
+`data.js` est **généré** par `tools/import_alpe.py` à partir du flux public de l'Espace Alpe d'Huez (le même que celui du site skipass.alpedhuez.com) :
+```bash
+python3 tools/import_alpe.py          # télécharge le flux et réécrit data.js
+python3 tools/import_alpe.py flux.xml # ou lit un fichier local
+```
+Le flux contient nom, couleur, longueur et altitudes des pistes, type/durée/altitudes/débit des remontées. Il ne contient **pas** les connexions piste ↔ remontée (voir plus bas) ni les durées de descente (estimées d'après la longueur : 12 / 18 / 26 km/h selon ta vitesse ; marche : 2,5 km/h). Il est complété par `tools/official_notes.json` (fiches officielles Sarenne, Tunnel, La Fare, page « Pistes mythiques »). Total : 111 pistes comme sur le site (31 bleues et 16 noires identiques ; le flux compte 37 vertes et 27 rouges contre 34 et 30 annoncées : les couleurs du flux sont conservées telles quelles).
+
+## Réseau pistes / remontées / chemins (itinéraires)
+Le flux officiel ne donne pas les connexions. `graph.js` est **généré** par `tools/build_graph.py` :
+- tracés et jonctions des pistes, remontées, liaisons et chemins piétons : **OpenStreetMap** (© contributeurs OpenStreetMap, ODbL) ;
+- noms, couleurs et durées des remontées : flux officiel (rapprochement par nom, alias dans `tools/aliases.json`) ;
+- altitudes des jonctions (pour orienter pistes et remontées) : EU-DEM 25 m via OpenTopoData.
+```bash
+python3 tools/build_graph.py            # interroge OpenStreetMap + altitudes, réécrit graph.js (réessaie si le serveur est instable)
+python3 tools/build_graph.py --cache /chemin/cache --xml flux.xml   # réutilise des téléchargements déjà faits
+```
+Couverture actuelle : 98 pistes officielles sur 111 et 59 remontées sur 65 ont un tracé ; les autres (stades débutants, ascenseurs, tapis) n'y sont pas. Les liaisons sont déduites de la carte OpenStreetMap, qui n'est pas une source officielle : elles peuvent contenir des erreurs, d'où l'avertissement dans l'appli.
+
+## Sources, relais, tests
+- Sources vérifiées, limites et solutions pour les temps d'attente : [`SOURCES.md`](SOURCES.md).
+- Relais (flux officiel → `live.json`, ouverture, mesures de la station) : [`relay/README.md`](relay/README.md) ; l'adresse se règle dans `config.js`.
+- Tests : `node --test test/engine.test.js` (moteur), `python3 -m unittest relay.test_relay` (relais), `node test/e2e.js` (navigateur mobile simulé, demande `playwright-core`).
+
+## Météo
+Les prévisions viennent de l'API publique MET Norway (`api.met.no`, autorise la lecture depuis un navigateur ; les données sont mises en cache 30 min). Le fichier de la station (`live.aten-altitude.com/alpehuez/atenlive.xml`) contient aussi la météo mesurée (température, neige, vent, limite du 0 °C, risque d'avalanche) et des prévisions J+1 à J+3, mais il n'autorise pas la lecture depuis un navigateur : pour l'afficher il faut un petit relais (serveur ou tâche planifiée). La neige affichée est une estimation (1 mm d'eau ≈ 1 cm de neige sous 1 °C).
+
+## Limites
+- Il manque un backend : la « communauté » se limite à toi et à tes contacts SKIP (les votes se partagent par message) ; moyenne et chat partagés, chat commun, connexion réelle aux réseaux (OAuth) et annuaire des skieurs. Le partage se fait par message texte contenant un code `SKIP:…`.
+- Pas de temps d'attente aux remontées ni d'état d'ouverture (hors saison, le flux ne les donne pas).
+- Pas d'état d'ouverture des pistes ni d'attente aux remontées : l'itinéraire peut inclure une piste fermée.
+- La détection GPS dépend de l'altitude fournie par le téléphone (précision limitée).
+- Pour publier sur les stores : empaqueter avec Capacitor. `engine.js` est testable sous Node sans navigateur.
+
+
+## Navigation, carte et hors ligne
+
+- **Carte** (`map.js`, `mvt.js`, `vendor/pmtiles.js`) : fond vectoriel lu dans `basemap/alpe.pmtiles`, tracé de l'itinéraire (pistes en couleur officielle, remontées en tirets, marche en pointillés, flèches de sens), étape choisie mise en évidence, noms lisibles selon le zoom, déplacement/zoom tactiles.
+- **Navigation** (`nav.js`, `navui.js`) : position projetée sur le tracé, parcouru/restant, bandeau d'instruction, liste d'étapes dépliable, recentrage, état du GPS (refusé, indisponible, imprécis, interrompu) sans fausse précision, sortie de parcours confirmée (3 points / 8 s) avec 3 choix : recalculer, revenir au tracé, ignorer. Suivi manuel (étape précédente/suivante) quand le GPS manque.
+- **Hors ligne** (`offline.js`, `shell.js`, `sw.js`) : « Télécharger pour une utilisation hors ligne » garde le tracé, les consignes, l'application et le fond de carte ; progression, date, état élément par élément, échec explicité. Le recalcul fonctionne hors ligne (le planificateur est dans l'appli).
+- **Profil personnel** : option de filtre qui n'utilise que le niveau, les envies et la discipline du profil ; les ajustements « pour ce trajet » ne modifient jamais le profil sans « Enregistrer ».
+- Tests : `node --test test/engine.test.js test/nav.test.js`, `node test/e2e.js`, `node test/e2e-nav.js` (Playwright ; la position GPS y est simulée).
+
+### Mise à jour : repérage, voix et suivi (voir SOURCES.md pour le détail)
+- Carte : réseau du domaine dessiné d'après `graph.js` (pistes en couleur officielle, remontées en tirets, stations, liaisons, chemins), noms affichés selon le zoom, en retrait sous l'itinéraire.
+- Suivi : position mesurée (jamais recalée), progression et validation d'étape séparées, « Près de : piste X » ou liste des pistes proches quand c'est ambigu.
+- Voix : réglages (voix, débit, volume, extrait), annonces courtes sans répétition (`voice.js`, `test/voice.test.js`).
+- Hors ligne : taille annoncée (≈ 5,9 Mo), tableau « point par point » de ce qui marche sans réseau.
+
+### Organisation (mise à jour)
+- Onglets : Pistes · Itinéraire · Ma journée · Rencontres · Météo. Réglages (⚙︎) : Mon profil, notifications, voix, sources, réinitialisation. Bouton SOS : secours du domaine + 112.
+- **Itinéraire** : Départ, arrivée, durée, difficulté (Mon profil · Ressentie /10 · Couleurs) → « Créer mon itinéraire » → résumé + « Ouvrir le GPS ». Options avancées et téléchargement hors ligne en secondaire. Difficulté partout sur 10 ; un ancien réglage sur 5 est converti explicitement (annoncé), les notes de pistes n'ont jamais été sur 5.
+- **Ma journée** : « Démarrer ma sortie » enregistre le parcours GPS (pause, reprise, arrêt confirmé) ; bilan avec carte, pistes parcourues (identifiées par le tracé GPS, sinon « à confirmer »), durée, distance, dénivelé ≈. Fin de journée = arrêt confirmé par l'utilisateur (une sortie ouverte > 12 h sans position est refermée à son dernier point et signalée).
+- **Rencontres** : intention du moment (valable le jour même) distincte du profil permanent (niveau, envies, disponibilités, zone) ; compatibilité lisible d'un coup d'œil.
+- **Rencontres › Amis et invitations** (ancien onglet Partage) : invitations par lien (`#invite=`), réponse (`#accept=`), mise à jour (`#hello=`) ; sans serveur, aucune notification : l'invitant n'est prévenu que s'il ouvre le lien de réponse. Pas d'annuaire : la recherche porte sur les personnes déjà connues de l'appareil.
+- Tests : `node --test test/*.test.js` ; `node test/e2e.js`, `node test/e2e-nav.js`, `node test/e2e-app.js`.

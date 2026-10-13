@@ -1,0 +1,572 @@
+<?xml version='1.0' encoding='utf-8'?>
+<SKIPLAN version="1">
+	<DATEINFO>13/10/2026 11:30</DATEINFO> 
+	<DATEINFO_EN>10/13/2026 11:30</DATEINFO_EN> 
+	<STATION nom="SATA" lang="fr" ent_id="1"> 
+		<PERIODES> 
+			<PERIODE ent_id="1" prd_id="33" nom="PTEST" debut="06/10/2000" debut_en="10/06/2000" fin="30/10/2000" fin_en="10/30/2000" /> 
+		</PERIODES> 
+ 
+		<METEO>
+			<PARAMETRES prevision="0">
+				<ZONE ent_id="1" nom="Alpe d'Huez" altitude="1800" datemaj="13/10/2026 11:30:15" datemaj_en="10/13/2026 11:30:15:" reference="Alpe d'Huez" OBS_ID="1">
+					<VALRISQUE>1</VALRISQUE>
+					<LIBRISQUE>Faible</LIBRISQUE>
+					<RSQ_REEL />
+					<TEMPERATURE>8</TEMPERATURE>
+					<TEMPERATURE_APM>14</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>14</TEMPERATURE_RESSENTIE>
+					<NEIGE>0</NEIGE>
+					<CUMUL>0</CUMUL>
+					<HORS_PISTE>0</HORS_PISTE>
+					<VENT>0</VENT>
+					<VENT_APM>0</VENT_APM>
+					<DIRECTION>N</DIRECTION>
+					<DIRECTION_AM>N</DIRECTION_AM>
+					<RAFALES>0</RAFALES>
+					<QUALITE>100</QUALITE>
+					<QLT_ID>100</QLT_ID>
+					<HORS_PISTE_QLT_ID>100</HORS_PISTE_QLT_ID>
+					<VISIBILITE>100</VISIBILITE>
+					<CIEL_ID>108</CIEL_ID>
+					<CIEL_ID_APM>106</CIEL_ID_APM>
+					<DERNIERE_CHUTE>31/03/2026 00:00</DERNIERE_CHUTE>
+					<DERNIERE_CHUTE_EN>31/03/2026 00:00</DERNIERE_CHUTE_EN>
+					<LIMITE_ISOTHERME_0>4000</LIMITE_ISOTHERME_0>
+					<LIMITE_ISOTHERME_10 />
+					<LIMITE_PLUIE_NEIGE />
+					<INDICE_UV />
+					<RISQUE_ORAGE />
+					<QUALITE_LABEL>Pas de neige</QUALITE_LABEL>
+					<TOTALRISQUE>5</TOTALRISQUE>
+				</ZONE>
+				<ZONE ent_id="1" nom="Pic Blanc" altitude="3300" datemaj="13/10/2026 11:30:15" datemaj_en="10/13/2026 11:30:15:" reference="Pic Blanc" OBS_ID="2">
+					<VALRISQUE>2</VALRISQUE>
+					<LIBRISQUE>Limité</LIBRISQUE>
+					<RSQ_REEL />
+					<TEMPERATURE>1</TEMPERATURE>
+					<TEMPERATURE_APM>5</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>-0.4</TEMPERATURE_RESSENTIE>
+					<NEIGE>10</NEIGE>
+					<CUMUL>20</CUMUL>
+					<HORS_PISTE>20</HORS_PISTE>
+					<VENT>36</VENT>
+					<VENT_APM>36</VENT_APM>
+					<DIRECTION>NO</DIRECTION>
+					<DIRECTION_AM>NO</DIRECTION_AM>
+					<RAFALES>43.2</RAFALES>
+					<QUALITE>Fraiche</QUALITE>
+					<QLT_ID>101</QLT_ID>
+					<HORS_PISTE_QLT_ID>100</HORS_PISTE_QLT_ID>
+					<VISIBILITE>50</VISIBILITE>
+					<CIEL_ID>103</CIEL_ID>
+					<CIEL_ID_APM>105</CIEL_ID_APM>
+					<DERNIERE_CHUTE>08/10/2026 00:00</DERNIERE_CHUTE>
+					<DERNIERE_CHUTE_EN>08/10/2026 00:00</DERNIERE_CHUTE_EN>
+					<LIMITE_ISOTHERME_0>4000</LIMITE_ISOTHERME_0>
+					<LIMITE_ISOTHERME_10 />
+					<LIMITE_PLUIE_NEIGE />
+					<INDICE_UV />
+					<RISQUE_ORAGE />
+					<QUALITE_LABEL>Fraiche</QUALITE_LABEL>
+					<TOTALRISQUE>5</TOTALRISQUE>
+				</ZONE>
+				<ZONE ent_id="1" nom="Villard" altitude="1650" datemaj="13/10/2026 11:30:15" datemaj_en="10/13/2026 11:30:15:" reference="Villard-Reculas" OBS_ID="9">
+					<VALRISQUE>0</VALRISQUE>
+					<LIBRISQUE>Aucun Risque</LIBRISQUE>
+					<RSQ_REEL />
+					<TEMPERATURE>0</TEMPERATURE>
+					<TEMPERATURE_APM>0</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>0</TEMPERATURE_RESSENTIE>
+					<NEIGE>0</NEIGE>
+					<CUMUL>0</CUMUL>
+					<HORS_PISTE />
+					<VENT>0</VENT>
+					<VENT_APM>0</VENT_APM>
+					<DIRECTION>N</DIRECTION>
+					<DIRECTION_AM>N</DIRECTION_AM>
+					<RAFALES>21.6</RAFALES>
+					<QUALITE />
+					<QLT_ID>100</QLT_ID>
+					<HORS_PISTE_QLT_ID>100</HORS_PISTE_QLT_ID>
+					<VISIBILITE>100</VISIBILITE>
+					<CIEL_ID>100</CIEL_ID>
+					<CIEL_ID_APM>100</CIEL_ID_APM>
+					<DERNIERE_CHUTE>31/03/2026 00:00</DERNIERE_CHUTE>
+					<DERNIERE_CHUTE_EN>31/03/2026 00:00</DERNIERE_CHUTE_EN>
+					<LIMITE_ISOTHERME_0 />
+					<LIMITE_ISOTHERME_10 />
+					<LIMITE_PLUIE_NEIGE />
+					<INDICE_UV />
+					<RISQUE_ORAGE />
+					<QUALITE_LABEL>Pas de neige</QUALITE_LABEL>
+					<TOTALRISQUE>5</TOTALRISQUE>
+				</ZONE>
+				<ZONE ent_id="1" nom="Auris" altitude="1600" datemaj="13/10/2026 11:30:16" datemaj_en="10/13/2026 11:30:16:" reference="Auris-en-Oisans" OBS_ID="3">
+					<VALRISQUE>0</VALRISQUE>
+					<LIBRISQUE>Aucun Risque</LIBRISQUE>
+					<RSQ_REEL />
+					<TEMPERATURE>0</TEMPERATURE>
+					<TEMPERATURE_APM>0</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>0</TEMPERATURE_RESSENTIE>
+					<NEIGE>0</NEIGE>
+					<CUMUL>0</CUMUL>
+					<HORS_PISTE>0</HORS_PISTE>
+					<VENT>0</VENT>
+					<VENT_APM>0</VENT_APM>
+					<DIRECTION>N</DIRECTION>
+					<DIRECTION_AM>N</DIRECTION_AM>
+					<RAFALES>0.0</RAFALES>
+					<QUALITE>100</QUALITE>
+					<QLT_ID>100</QLT_ID>
+					<HORS_PISTE_QLT_ID>100</HORS_PISTE_QLT_ID>
+					<VISIBILITE>100</VISIBILITE>
+					<CIEL_ID>100</CIEL_ID>
+					<CIEL_ID_APM>100</CIEL_ID_APM>
+					<DERNIERE_CHUTE>26/03/2026 00:00</DERNIERE_CHUTE>
+					<DERNIERE_CHUTE_EN>26/03/2026 00:00</DERNIERE_CHUTE_EN>
+					<LIMITE_ISOTHERME_0>0</LIMITE_ISOTHERME_0>
+					<LIMITE_ISOTHERME_10 />
+					<LIMITE_PLUIE_NEIGE />
+					<INDICE_UV />
+					<RISQUE_ORAGE />
+					<QUALITE_LABEL>Pas de neige</QUALITE_LABEL>
+					<TOTALRISQUE>5</TOTALRISQUE>
+				</ZONE>
+				<ZONE ent_id="1" nom="Oz" altitude="1350" datemaj="13/10/2026 11:30:16" datemaj_en="10/13/2026 11:30:16:" reference="Oz 3300" OBS_ID="10">
+					<VALRISQUE>0</VALRISQUE>
+					<LIBRISQUE>Aucun Risque</LIBRISQUE>
+					<RSQ_REEL />
+					<TEMPERATURE>11</TEMPERATURE>
+					<TEMPERATURE_APM>17</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>17</TEMPERATURE_RESSENTIE>
+					<NEIGE>0</NEIGE>
+					<CUMUL>0</CUMUL>
+					<HORS_PISTE>0</HORS_PISTE>
+					<VENT>0</VENT>
+					<VENT_APM>0</VENT_APM>
+					<DIRECTION>SO</DIRECTION>
+					<DIRECTION_AM>NO</DIRECTION_AM>
+					<RAFALES>0.0</RAFALES>
+					<QUALITE>100</QUALITE>
+					<QLT_ID>100</QLT_ID>
+					<HORS_PISTE_QLT_ID>100</HORS_PISTE_QLT_ID>
+					<VISIBILITE>100</VISIBILITE>
+					<CIEL_ID>104</CIEL_ID>
+					<CIEL_ID_APM>108</CIEL_ID_APM>
+					<DERNIERE_CHUTE>31/03/2026 00:00</DERNIERE_CHUTE>
+					<DERNIERE_CHUTE_EN>31/03/2026 00:00</DERNIERE_CHUTE_EN>
+					<LIMITE_ISOTHERME_0>2700</LIMITE_ISOTHERME_0>
+					<LIMITE_ISOTHERME_10 />
+					<LIMITE_PLUIE_NEIGE />
+					<INDICE_UV />
+					<RISQUE_ORAGE />
+					<QUALITE_LABEL>Pas de neige</QUALITE_LABEL>
+					<TOTALRISQUE>5</TOTALRISQUE>
+				</ZONE>
+				<ZONE ent_id="1" nom="Vaujany – Montfrais" altitude="1250" datemaj="13/10/2026 11:30:16" datemaj_en="10/13/2026 11:30:16:" reference="Vaujany" OBS_ID="11">
+					<VALRISQUE>0</VALRISQUE>
+					<LIBRISQUE>Aucun Risque</LIBRISQUE>
+					<RSQ_REEL />
+					<TEMPERATURE>0</TEMPERATURE>
+					<TEMPERATURE_APM>0</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>0</TEMPERATURE_RESSENTIE>
+					<NEIGE>0</NEIGE>
+					<CUMUL>0</CUMUL>
+					<HORS_PISTE>0</HORS_PISTE>
+					<VENT>0</VENT>
+					<VENT_APM>0</VENT_APM>
+					<DIRECTION>N</DIRECTION>
+					<DIRECTION_AM>N</DIRECTION_AM>
+					<RAFALES>18.0</RAFALES>
+					<QUALITE>100</QUALITE>
+					<QLT_ID>100</QLT_ID>
+					<HORS_PISTE_QLT_ID>100</HORS_PISTE_QLT_ID>
+					<VISIBILITE>100</VISIBILITE>
+					<CIEL_ID>100</CIEL_ID>
+					<CIEL_ID_APM>100</CIEL_ID_APM>
+					<DERNIERE_CHUTE>31/03/2026 00:00</DERNIERE_CHUTE>
+					<DERNIERE_CHUTE_EN>31/03/2026 00:00</DERNIERE_CHUTE_EN>
+					<LIMITE_ISOTHERME_0>0</LIMITE_ISOTHERME_0>
+					<LIMITE_ISOTHERME_10 />
+					<LIMITE_PLUIE_NEIGE />
+					<INDICE_UV />
+					<RISQUE_ORAGE />
+					<QUALITE_LABEL>Pas de neige</QUALITE_LABEL>
+					<TOTALRISQUE>5</TOTALRISQUE>
+				</ZONE>
+				<ZONE ent_id="1" nom="Dôme des Rousses" altitude="2810" datemaj="13/10/2026 11:30:16" datemaj_en="10/13/2026 11:30:16:" reference="Dôme des Rousses" OBS_ID="12">
+					<VALRISQUE>0</VALRISQUE>
+					<LIBRISQUE>Aucun Risque</LIBRISQUE>
+					<RSQ_REEL />
+					<TEMPERATURE>0</TEMPERATURE>
+					<TEMPERATURE_APM>0</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>0</TEMPERATURE_RESSENTIE>
+					<NEIGE>0</NEIGE>
+					<CUMUL>0</CUMUL>
+					<HORS_PISTE>0</HORS_PISTE>
+					<VENT>0</VENT>
+					<VENT_APM>0</VENT_APM>
+					<DIRECTION>N</DIRECTION>
+					<DIRECTION_AM>N</DIRECTION_AM>
+					<RAFALES>14.4</RAFALES>
+					<QUALITE>100</QUALITE>
+					<QLT_ID>100</QLT_ID>
+					<HORS_PISTE_QLT_ID>100</HORS_PISTE_QLT_ID>
+					<VISIBILITE>100</VISIBILITE>
+					<CIEL_ID>100</CIEL_ID>
+					<CIEL_ID_APM>100</CIEL_ID_APM>
+					<DERNIERE_CHUTE>13/04/2026 00:00</DERNIERE_CHUTE>
+					<DERNIERE_CHUTE_EN>13/04/2026 00:00</DERNIERE_CHUTE_EN>
+					<LIMITE_ISOTHERME_0>0</LIMITE_ISOTHERME_0>
+					<LIMITE_ISOTHERME_10 />
+					<LIMITE_PLUIE_NEIGE />
+					<INDICE_UV />
+					<RISQUE_ORAGE />
+					<QUALITE_LABEL>Pas de neige</QUALITE_LABEL>
+					<TOTALRISQUE>5</TOTALRISQUE>
+				</ZONE>
+			</PARAMETRES>
+			<PARAMETRES prevision="1">
+				<ZONE ent_id="1" nom="J+1" altitude="1860" datemaj="14/10/2026 11:30:16" datemaj_en="10/14/2026 11:30:16:" reference="Alpe d'Huez" OBS_ID="4">
+					<TEMPERATURE>8</TEMPERATURE>
+					<TEMPERATURE_APM>15</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>15</TEMPERATURE_RESSENTIE>
+					<NEIGE>0</NEIGE>
+					<CUMUL>0</CUMUL>
+					<VENT>3</VENT>
+					<DIRECTION>0</DIRECTION>
+					<RAFALES>0</RAFALES>
+					<QUALITE>0</QUALITE>
+					<QLT_ID>100</QLT_ID>
+					<VISIBILITE>100</VISIBILITE>
+					<CIEL_ID>102</CIEL_ID>
+					<CIEL_ID_APM>102</CIEL_ID_APM>
+					<LIMITE_ISOTHERME_0>0</LIMITE_ISOTHERME_0>
+					<LIMITE_ISOTHERME_10>0</LIMITE_ISOTHERME_10>
+					<LIMITE_PLUIE_NEIGE>0</LIMITE_PLUIE_NEIGE>
+					<INDICE_UV>0</INDICE_UV>
+					<RISQUE_ORAGE>0</RISQUE_ORAGE>
+				</ZONE>
+			</PARAMETRES>
+			<PARAMETRES prevision="2">
+				<ZONE ent_id="1" nom="J+2" altitude="1860" datemaj="15/10/2026 11:30:16" datemaj_en="10/15/2026 11:30:16:" reference="Alpe d'Huez" OBS_ID="5">
+					<TEMPERATURE>0</TEMPERATURE>
+					<TEMPERATURE_APM>0</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>0</TEMPERATURE_RESSENTIE>
+					<NEIGE>0</NEIGE>
+					<CUMUL>0</CUMUL>
+					<VENT>0</VENT>
+					<DIRECTION>0</DIRECTION>
+					<RAFALES>0</RAFALES>
+					<QUALITE>0</QUALITE>
+					<QLT_ID>100</QLT_ID>
+					<VISIBILITE>100</VISIBILITE>
+					<CIEL_ID>100</CIEL_ID>
+					<CIEL_ID_APM>100</CIEL_ID_APM>
+					<LIMITE_ISOTHERME_0>0</LIMITE_ISOTHERME_0>
+					<LIMITE_ISOTHERME_10>0</LIMITE_ISOTHERME_10>
+					<LIMITE_PLUIE_NEIGE>0</LIMITE_PLUIE_NEIGE>
+					<INDICE_UV>0</INDICE_UV>
+					<RISQUE_ORAGE>0</RISQUE_ORAGE>
+				</ZONE>
+			</PARAMETRES>
+			<PARAMETRES prevision="3">
+				<ZONE ent_id="1" nom="J+3" altitude="1860" datemaj="16/10/2026 11:30:16" datemaj_en="10/16/2026 11:30:16:" reference="Alpe d'Huez" OBS_ID="6">
+					<TEMPERATURE>0</TEMPERATURE>
+					<TEMPERATURE_APM>0</TEMPERATURE_APM>
+					<TEMPERATURE_RESSENTIE>0</TEMPERATURE_RESSENTIE>
+					<NEIGE>0</NEIGE>
+					<CUMUL>0</CUMUL>
+					<VENT>0</VENT>
+					<DIRECTION>0</DIRECTION>
+					<RAFALES>0</RAFALES>
+					<QUALITE>0</QUALITE>
+					<QLT_ID>100</QLT_ID>
+					<VISIBILITE>100</VISIBILITE>
+					<CIEL_ID>100</CIEL_ID>
+					<CIEL_ID_APM>100</CIEL_ID_APM>
+					<LIMITE_ISOTHERME_0>0</LIMITE_ISOTHERME_0>
+					<LIMITE_ISOTHERME_10>0</LIMITE_ISOTHERME_10>
+					<LIMITE_PLUIE_NEIGE>0</LIMITE_PLUIE_NEIGE>
+					<INDICE_UV>0</INDICE_UV>
+					<RISQUE_ORAGE>0</RISQUE_ORAGE>
+				</ZONE>
+			</PARAMETRES>
+			<BULLETINS>
+			</BULLETINS>
+			<INDICES nom="SATA" ent_id="1" ind_id="2">
+				<SKIABILITE val="9" lib="9 : Pratique du ski sur 80 à 90% du domaine" total_piste_prev="11" total_piste_ouv="1" />
+				<AMBIANCE val="1" lib="Partielle : présence de neige partielle" />
+				<RETOUR_SKI val="0" lib="Total : l'ensemble des secteurs de la station est assuré" />
+				<ETAT_ROUTE val="1" lib="Accès dégagé, prévoir les équipements spéciaux" />
+				<ETAT_CHAUSSEE val="0" lib="Dégagées et sèches" />
+				<PRATIQUE_ACTIVITES val="0" lib="Excellentes" />
+				<STATION_OUVERTURE val="0" lib="Ouverte" />
+				<STATION_PERIODE_HIVER debut="03/12/2022" debut_en="12/03/2022" fin="30/10/2026" fin_en="10/30/2026" />
+				<STATION_PERIOD_ETE debut="26/06/2026" debut_en="06/26/2026" fin="30/08/2026" fin_en="08/30/2026" />
+				<SKI_NUIT etat="0" lundi="0" mardi="0" mercredi="0" jeudi="0" vendredi="0" samedi="0" dimanche="0" />
+				<SKI_AURORE etat="0" lundi="0" mardi="0" mercredi="0" jeudi="0" vendredi="0" samedi="0" dimanche="0" />
+				<KM_SKATING ouvert="0" />
+				<COMMENTAIRES>
+					<LANGUE val="en" />
+					<LANGUE val="es" />
+					<LANGUE val="fr" />
+					<LANGUE val="it" />
+				</COMMENTAIRES>
+				<SKI_ALPIN total="112" total_periode="5" total_periode_hpf="112" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="112" hpf="0" hors_periodes="0" lng_total="142.718" lng_periode="0.0" lng_ouverts="" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" enneigeurs="0" neige_garantie="0" />
+				<SKI_ALPIN_VERTES total="37" total_periode="1" total_periode_hpf="37" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="37" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" enneigeurs="0" neige_garantie="0" />
+				<SKI_ALPIN_BLEUES total="30" total_periode="1" total_periode_hpf="30" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="30" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" enneigeurs="0" neige_garantie="0" />
+				<SKI_ALPIN_ROUGES total="29" total_periode="3" total_periode_hpf="29" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="29" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" enneigeurs="0" neige_garantie="0" />
+				<SKI_ALPIN_NOIRES total="16" total_periode="0" total_periode_hpf="16" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="16" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" enneigeurs="0" neige_garantie="0" />
+				<SKI_NORDIQUE total="7" total_periode="1" total_periode_hpf="7" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="7" hpf="0" hors_periodes="0" lng_total="20.69" lng_periode="0.0" lng_ouverts="" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<SKI_NORDIQUE_VERTES total="1" total_periode="1" total_periode_hpf="1" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="1" hpf="0" hors_periodes="0" lng_total="0.6" lng_periode="0.0" lng_ouverts="" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<SKI_NORDIQUE_BLEUES total="3" total_periode="3" total_periode_hpf="3" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="3" hpf="0" hors_periodes="0" lng_total="7.59" lng_periode="0.0" lng_ouverts="" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<SKI_NORDIQUE_ROUGES total="5" total_periode="5" total_periode_hpf="3" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="3" hpf="0" hors_periodes="0" lng_total="12.5" lng_periode="0.0" lng_ouverts="" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<SKI_NORDIQUE_NOIRES total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="" lng_periode="0.0" lng_ouverts="" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<DH_VERT total="10" total_periode="10" total_periode_hpf="10" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="10" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<DH_BLEU total="6" total_periode="6" total_periode_hpf="6" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="6" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<DH_ROUGE total="5" total_periode="5" total_periode_hpf="5" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="5" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<DH_NOIR total="4" total_periode="4" total_periode_hpf="4" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="3" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<DH_JAUNE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<DH_ND total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<XC_VERT total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<XC_BLEU total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<XC_ROUGE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<XC_NOIR total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<XC_JAUNE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<XC_ND total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<SF_VERT total="0" total_periode="0" lng_total="0.0" lng_periode="0.0" />
+				<SF_BLEU total="0" total_periode="0" lng_total="0.0" lng_periode="0.0" />
+				<SF_ROUGE total="0" total_periode="0" lng_total="0.0" lng_periode="0.0" />
+				<SF_NOIR total="0" total_periode="0" lng_total="0.0" lng_periode="0.0" />
+				<SF_JAUNE total="0" total_periode="0" lng_total="0.0" lng_periode="0.0" />
+				<SF_ND total="0" total_periode="0" lng_total="0.0" lng_periode="0.0" />
+				<REMONTEES total="68" total_periode="29" total_periode_hpf="29" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="29" hpf="0" hors_periodes="0" acces_pietons_hiver="0" acces_pietons_ete="0" acces_vtt_ete="0">
+					<FUNI total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" />
+					<TB total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" />
+					<TC total="10" total_periode="10" total_periode_hpf="10" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="10" hpf="0" hors_periodes="0" />
+					<TPH total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" />
+					<TS total="8" total_periode="8" total_periode_hpf="8" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="8" hpf="0" hors_periodes="0" />
+					<TSD total="7" total_periode="7" total_periode_hpf="7" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="7" hpf="0" hors_periodes="0" />
+					<TK total="17" total_periode="17" total_periode_hpf="17" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="17" hpf="0" hors_periodes="0" />
+					<FNT total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" />
+					<TR total="10" total_periode="10" total_periode_hpf="10" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="10" hpf="0" hors_periodes="0" />
+					<TLC total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" />
+					<ASC total="2" total_periode="2" total_periode_hpf="2" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="2" hpf="0" hors_periodes="0" />
+					<TSDB total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" />
+					<TMX total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" />
+					<TRAIN total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" />
+				</REMONTEES>
+				<PIETONS total="14" total_periode="1" total_periode_hpf="14" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="14" hpf="0" hors_periodes="0" lng_total="23.1" lng_periode="0.0" lng_ouverts="" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<RAQUETTES total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<LUGE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<ZONE_LUDIQUES total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<TOILETTES total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<RESTAURANTS total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<CAISSES total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0" lng_fermees="0" />
+				<SKI_RANDONNEE total="6" total_periode="6" total_periode_hpf="6" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="6" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<FREERIDE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<VTT_ENDURO total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<LIAISONS total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" hpf="0" hors_periodes="0" />
+				<SNOWPARK total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0">
+					<BIGAIR total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<BOX total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<CHILLZONE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<HALFPIPE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<HIP total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<AIRBAG total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<KICKER total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<QUATERPIPE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<RAIL total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<STEPUP total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<WATERSLIDE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<WHOOPS total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<BOARDERCROSS total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<VIDEOZONE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<SPEEDZONE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+				</SNOWPARK>
+				<LIGNE_SNOWPARK total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0">
+					<BIGAIR total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<BOX total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<CHILLZONE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<HALFPIPE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<HIP total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<AIRBAG total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<KICKER total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<QUATERPIPE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<RAIL total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<STEPUP total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<WATERSLIDE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<WHOOPS total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<BOARDERCROSS total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<VIDEOZONE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<SPEEDZONE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+				</LIGNE_SNOWPARK>
+				<BOARDERCROSS total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periode_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0">
+					<BIGAIR total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<BOX total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<CHILLZONE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<HALFPIPE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<HIP total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<AIRBAG total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<KICKER total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<QUATERPIPE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<RAIL total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<STEPUP total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<WATERSLIDE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<WHOOPS total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<BOARDERCROSS total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<VIDEOZONE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+					<SPEEDZONE total="0" total_periode="0" total_periode_hpf="0" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="0" />
+				</BOARDERCROSS>
+				<TOTAL_ETE total="57" total_periode="57" total_periode_hpf="47" ouvertes_previsions="0" ouvertes="1" previsions="0" fermees="45" hpf="1" hors_periodes="1" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<TOTAL_ETE_VERT total="14" total_periode="14" total_periode_hpf="13" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="13" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<TOTAL_ETE_BLEU total="15" total_periode="15" total_periode_hpf="10" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="10" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<TOTAL_ETE_ROUGE total="14" total_periode="14" total_periode_hpf="13" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="13" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+				<TOTAL_ETE_NOIR total="9" total_periode="9" total_periode_hpf="7" ouvertes_previsions="0" ouvertes="0" previsions="0" fermees="6" hpf="0" hors_periodes="0" lng_total="0.0" lng_periode="0.0" lng_ouverts="0.0" lng_ouvertes_previsions="0.0" lng_periodes_hpf="0.0" lng_previsions="0.0" lng_fermees="0.0" />
+			</INDICES>
+		</METEO>
+ 
+		<ETATS>
+			<SECTEUR nom="Villard Reculas Station" ent_id="1" sct_id="4">
+				</SECTEUR>
+			<SECTEUR nom="Alpe d'Huez&lt;br /&gt;Pic Blanc" ent_id="1" sct_id="5">
+				<REMONTEE ent_id="1" sct_id="5" nom="Pic Blanc" etat="F" type="TPH" pag_id="1" prl_id="32" msg="" etat_comp="0" attente="" longueur="2131" surface="0" alt_depart="2622" alt_arrivee="3318" denivele="696" vitesse="0" capacite="0" acces_pietons_hiver="0" acces_pietons_ete="0" acces_vtt_ete="0" nocturne="0" aurore="0" heuredeb="09:00" heurefin="16:30" heuredebmod="09:00" heurefinmod="16:30" heuredesc="16:30" debit="1015" duree="5" ishide="0" plagesheures="09:00 - 16:30" status="Fermé" colorstatus="#f53b31" etiquette="" orderby="2 Pic Blanc" descclient="" msg_langen="" status_langen="Closed">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="09:00" heurefin="16:30" />
+					</PLAGES>
+				</REMONTEE>
+				<REMONTEE ent_id="1" sct_id="5" nom="Herpie" etat="P" type="TS" pag_id="1" prl_id="35" msg="" etat_comp="0" attente="" longueur="993" surface="0" alt_depart="2735" alt_arrivee="3061" denivele="326" vitesse="0" capacite="0" acces_pietons_hiver="0" acces_pietons_ete="0" acces_vtt_ete="0" nocturne="0" aurore="0" heuredeb="09:00" heurefin="16:30" heuredebmod="09:00" heurefinmod="16:30" heuredesc="16:30" debit="2000" duree="7" ishide="0" plagesheures="09:00 - 16:30" status="Fermé jusqu'à demain" colorstatus="#161532" etiquette="" orderby="4 Herpie" descclient="" msg_langen="" status_langen="Closed until tomorrow">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="09:00" heurefin="16:30" />
+					</PLAGES>
+				</REMONTEE>
+				<PISTE ent_id="1" sct_id="5" nom="Sarenne" etat="H" type="A" pag_id="2" prl_id="134595" msg="" etat_comp="0" entretien_txt="0" entretien_num="0" longueur="16000" surface="35" alt_depart="3320" alt_arrivee="1650" denivele="" pistequaliteneige="0" enneigeurs="0" neige_garantie="0" nocturne="0" aurore="0" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="20:00" niveau="N" ishide="1" plagesheures="" status="Hors période d'exploitation" colorstatus="#c0c0c0" orderby="4 99 Sarenne" descclient="" msg_langen="" status_langen="Closed – Off Season">
+					<PLAGES>
+					</PLAGES>
+					<etiquette />
+				</PISTE>
+				<PISTE ent_id="1" sct_id="5" nom="Tunnel" etat="H" type="A" pag_id="2" prl_id="134596" msg="" etat_comp="0" entretien_txt="0" entretien_num="0" longueur="3330" surface="22" alt_depart="3250" alt_arrivee="2530" denivele="" pistequaliteneige="0" enneigeurs="0" neige_garantie="0" nocturne="0" aurore="0" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="15:00" niveau="N" ishide="1" plagesheures="" status="Hors période d'exploitation" colorstatus="#c0c0c0" orderby="4 99 Tunnel" descclient="" msg_langen="" status_langen="Closed – Off Season">
+					<PLAGES>
+					</PLAGES>
+					<etiquette />
+				</PISTE>
+			</SECTEUR>
+			<SECTEUR nom="Alpe d'Huez&lt;br /&gt;Village" ent_id="1" sct_id="6">
+				</SECTEUR>
+			<SECTEUR nom="Alpe d'Huez&lt;br /&gt;Signal 2100" ent_id="1" sct_id="7">
+				<REMONTEE ent_id="1" sct_id="7" nom="Poutran" etat="F" type="TK" pag_id="1" prl_id="87" msg="" etat_comp="0" attente="" longueur="790" surface="0" alt_depart="1880" alt_arrivee="1996" denivele="116" vitesse="0" capacite="0" acces_pietons_hiver="0" acces_pietons_ete="0" acces_vtt_ete="0" nocturne="0" aurore="0" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" debit="720" duree="4" ishide="1" plagesheures="" status="Fermé" colorstatus="#f53b31" etiquette="" orderby="2 Poutran" descclient="" msg_langen="" status_langen="Closed">
+					<PLAGES>
+					</PLAGES>
+				</REMONTEE>
+				<REMONTEE ent_id="1" sct_id="7" nom="Signal" etat="F" type="TMX" pag_id="1" prl_id="112228" msg="" etat_comp="0" attente="" longueur="812" surface="0" alt_depart="1860" alt_arrivee="2112" denivele="252" vitesse="0" capacite="0" acces_pietons_hiver="0" acces_pietons_ete="0" acces_vtt_ete="0" nocturne="0" aurore="0" heuredeb="09:00" heurefin="16:30" heuredebmod="09:00" heurefinmod="16:30" heuredesc="16:30" debit="3360" duree="2.2" ishide="0" plagesheures="09:00 - 16:30" status="Fermé" colorstatus="#f53b31" etiquette="" orderby="2 Signal" descclient="" msg_langen="" status_langen="Closed">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="09:00" heurefin="16:30" />
+					</PLAGES>
+				</REMONTEE>
+				<PISTE ent_id="1" sct_id="7" nom="Signal" etat="O" type="A" pag_id="2" prl_id="134616" msg="" etat_comp="0" entretien_txt="0" entretien_num="0" longueur="1500" surface="14" alt_depart="2110" alt_arrivee="1865" denivele="" pistequaliteneige="0" enneigeurs="0" neige_garantie="0" nocturne="0" aurore="0" heuredeb="10:00" heurefin="15:00" heuredebmod="09:00" heurefinmod="15:00" heuredesc="15:00" heuredescmod="17:00" niveau="R" ishide="0" plagesheures="09:00 - 15:00" status="Ouvert" colorstatus="#43c759" orderby="3 1 Signal" descclient="" msg_langen="" status_langen="Opened">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="10:00" heurefin="15:00" />
+					</PLAGES>
+					<etiquette />
+				</PISTE>
+				</SECTEUR>
+			<SECTEUR nom="Auris-en-Oisans&lt;br /&gt;Promenades-Fond" ent_id="1" sct_id="8">
+				</SECTEUR>
+			<SECTEUR nom="Ski de fond&lt;br /&gt;Espace Alpe d'Huez" ent_id="1" sct_id="9">
+				<Liaison ent_id="1" sct_id="9" nom="Liaison Ski de fond Alpe d'Huez - Alpette" etat="F" pag_id="2" prl_id="135473" msg="" etat_comp="" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="16:30" plagesheures="" ishide="1" status="Fermé" colorstatus="#f53b31" etiquette="" orderby="2 Liaison Ski de fond Alpe d'Huez - Alpette" descclient="" type="liaison_hd_bk" msg_langen="" status_langen="Closed">
+					<PLAGES>
+					</PLAGES>
+				</Liaison>
+			</SECTEUR>
+			<SECTEUR nom="Alpe d'Huez&lt;br /&gt;Jeux - Lac Blanc" ent_id="1" sct_id="1">
+				<REMONTEE ent_id="1" sct_id="1" nom="Lièvre Blanc" etat="O" type="TS" pag_id="1" prl_id="36" msg="" etat_comp="0" attente="" longueur="1520" surface="0" alt_depart="2100" alt_arrivee="2530" denivele="447" vitesse="0" capacite="0" acces_pietons_hiver="0" acces_pietons_ete="0" acces_vtt_ete="0" nocturne="0" aurore="0" heuredeb="09:30" heurefin="16:30" heuredebmod="09:30" heurefinmod="16:00" heuredesc="16:30" debit="1800" duree="11" ishide="0" plagesheures="09:30 - 16:00" status="Ouvert" colorstatus="#43c759" etiquette="" orderby="1 Lièvre Blanc" descclient="" msg_langen="" status_langen="Opened">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="09:00" heurefin="16:30" />
+					</PLAGES>
+				</REMONTEE>
+				<PISTE ent_id="1" sct_id="1" nom="Jeux" etat="H" type="A" pag_id="2" prl_id="134602" msg="" etat_comp="0" entretien_txt="0" entretien_num="0" longueur="2435" surface="227" alt_depart="2080" alt_arrivee="1965" denivele="" pistequaliteneige="0" enneigeurs="0" neige_garantie="0" nocturne="0" aurore="0" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="23:59" niveau="V" ishide="1" plagesheures="" status="Hors période d'exploitation" colorstatus="#c0c0c0" orderby="1 99 Jeux" descclient="" msg_langen="" status_langen="Closed – Off Season">
+					<PLAGES>
+					</PLAGES>
+					<etiquette />
+				</PISTE>
+				</SECTEUR>
+			<SECTEUR nom="Alpe d'Huez&lt;br /&gt;Bergers-Marmotte" ent_id="1" sct_id="2">
+				<REMONTEE ent_id="1" sct_id="2" nom="Marmottes 1" etat="P" type="TMX" pag_id="1" prl_id="5" msg="" etat_comp="0" attente="" longueur="2228" surface="0" alt_depart="1809" alt_arrivee="2337" denivele="528" vitesse="0" capacite="0" acces_pietons_hiver="0" acces_pietons_ete="0" acces_vtt_ete="0" nocturne="0" aurore="0" heuredeb="09:00" heurefin="16:30" heuredebmod="09:00" heurefinmod="16:00" heuredesc="16:30" debit="3300" duree="13" ishide="0" plagesheures="09:00 - 16:00" status="Ouverture décalée" colorstatus="#ff9d00" etiquette="" orderby="99 Marmottes 1" descclient="" msg_langen="" status_langen="Delayed Opening">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="09:00" heurefin="16:30" />
+					</PLAGES>
+				</REMONTEE>
+				</SECTEUR>
+			<SECTEUR nom="Alpe d'Huez&lt;br /&gt;Débutants" ent_id="1" sct_id="11">
+				</SECTEUR>
+			<SECTEUR nom="Ski de randonnée&lt;br /&gt;Espace Alpe d'Huez" ent_id="1" sct_id="14">
+				</SECTEUR>
+			<SECTEUR nom="Oz 3300&lt;br /&gt;Vaujany" ent_id="1" sct_id="23">
+				<REMONTEE ent_id="1" sct_id="23" nom="Poutran" etat="F" type="TC" pag_id="1" prl_id="207652" msg="" etat_comp="0" attente="" longueur="" surface="0" alt_depart="1350 M" alt_arrivee="2107 M" denivele="756" vitesse="0" capacite="0" acces_pietons_hiver="0" acces_pietons_ete="0" acces_vtt_ete="0" nocturne="0" aurore="0" heuredeb="09:00" heurefin="16:30" heuredebmod="09:00" heurefinmod="16:30" heuredesc="16:30" debit="2400" duree="8" ishide="0" plagesheures="09:00 - 16:30" status="Fermé" colorstatus="#f53b31" etiquette="" orderby="2 Poutran" descclient="" msg_langen="" status_langen="Closed">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="09:00" heurefin="16:30" />
+					</PLAGES>
+				</REMONTEE>
+				<PISTE ent_id="1" sct_id="23" nom="Rousses" etat="P" type="A" pag_id="2" prl_id="205715" msg="" etat_comp="0" entretien_txt="0" entretien_num="0" longueur="" surface="" alt_depart="2525" alt_arrivee="2050" denivele="" pistequaliteneige="0" enneigeurs="" neige_garantie="" nocturne="" aurore="0" heuredeb="09:10" heurefin="16:45" heuredebmod="09:10" heurefinmod="16:45" heuredesc="16:45" heuredescmod="16:45" niveau="R" ishide="0" plagesheures="09:10 - 16:45" status="Fermé jusqu'à demain" colorstatus="#161532" orderby="3 4 Rousses" descclient="" msg_langen="" status_langen="Closed until tomorrow">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="09:10" heurefin="16:45" />
+					</PLAGES>
+					<etiquette />
+				</PISTE>
+				</SECTEUR>
+			<SECTEUR nom="Alpe d'Huez&lt;br /&gt;Première Glisse" ent_id="1" sct_id="24">
+				<REMONTEE ent_id="1" sct_id="24" nom="Signal" etat="F" type="TMX" pag_id="1" prl_id="112228" msg="" etat_comp="0" attente="" longueur="812" surface="0" alt_depart="1860" alt_arrivee="2112" denivele="252" vitesse="0" capacite="0" acces_pietons_hiver="0" acces_pietons_ete="0" acces_vtt_ete="0" nocturne="0" aurore="0" heuredeb="09:00" heurefin="16:30" heuredebmod="09:00" heurefinmod="16:30" heuredesc="16:30" debit="3360" duree="2.2" ishide="0" plagesheures="09:00 - 16:30" status="Fermé" colorstatus="#f53b31" etiquette="" orderby="2 Signal" descclient="" msg_langen="" status_langen="Closed">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="09:00" heurefin="16:30" />
+					</PLAGES>
+				</REMONTEE>
+				<PISTE ent_id="1" sct_id="24" nom="Jeux" etat="H" type="A" pag_id="2" prl_id="134602" msg="" etat_comp="0" entretien_txt="0" entretien_num="0" longueur="2435" surface="227" alt_depart="2080" alt_arrivee="1965" denivele="" pistequaliteneige="0" enneigeurs="0" neige_garantie="0" nocturne="0" aurore="0" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="23:59" niveau="V" ishide="1" plagesheures="" status="Hors période d'exploitation" colorstatus="#c0c0c0" orderby="1 99 Jeux" descclient="" msg_langen="" status_langen="Closed – Off Season">
+					<PLAGES>
+					</PLAGES>
+					<etiquette />
+				</PISTE>
+				<PISTE ent_id="1" sct_id="24" nom="Signal" etat="O" type="A" pag_id="2" prl_id="134616" msg="" etat_comp="0" entretien_txt="0" entretien_num="0" longueur="1500" surface="14" alt_depart="2110" alt_arrivee="1865" denivele="" pistequaliteneige="0" enneigeurs="0" neige_garantie="0" nocturne="0" aurore="0" heuredeb="10:00" heurefin="15:00" heuredebmod="09:00" heurefinmod="15:00" heuredesc="15:00" heuredescmod="17:00" niveau="R" ishide="0" plagesheures="09:00 - 15:00" status="Ouvert" colorstatus="#43c759" orderby="3 1 Signal" descclient="" msg_langen="" status_langen="Opened">
+					<PLAGES>
+						<PLAGE ent_id="1" prd_id="33" pgh_id="1" heuredeb="10:00" heurefin="15:00" />
+					</PLAGES>
+					<etiquette />
+				</PISTE>
+				</SECTEUR>
+			<SECTEUR nom="Espaces&lt;br /&gt;ludiques" ent_id="1" sct_id="13">
+				</SECTEUR>
+			<SECTEUR nom="Auris-en-Oisans Station" ent_id="1" sct_id="3">
+				</SECTEUR>
+			<SECTEUR nom="Balades&lt;br /&gt;Espace Alpe d'Huez" ent_id="1" sct_id="10">
+				<Liaison ent_id="1" sct_id="10" nom="Liaison Piétons Alpe d'Huez - Alpette" etat="F" pag_id="2" prl_id="135474" msg="" etat_comp="" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="23:59" plagesheures="" ishide="1" status="Fermé" colorstatus="#f53b31" etiquette="" orderby="2 Liaison Piétons Alpe d'Huez - Alpette" descclient="" type="liaison_hd_bk" msg_langen="" status_langen="Closed">
+					<PLAGES>
+					</PLAGES>
+				</Liaison>
+			</SECTEUR>
+			<SECTEUR nom="Liaisons interstations" ent_id="1" sct_id="12">
+				<Liaison ent_id="1" sct_id="12" nom="Alpe d'Huez-Auris" etat="F" pag_id="2" prl_id="134785" msg="" etat_comp="" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="16:20" plagesheures="" ishide="1" status="Fermé" colorstatus="#f53b31" etiquette="" orderby="2 Alpe d'Huez-Auris" descclient="" type="liaison_hd_bk" msg_langen="" status_langen="Closed">
+					<PLAGES>
+					</PLAGES>
+				</Liaison>
+				<Liaison ent_id="1" sct_id="12" nom="Alpe d'Huez-Oz" etat="H" pag_id="2" prl_id="134784" msg="" etat_comp="" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="23:59" plagesheures="" ishide="1" status="Hors période d'exploitation" colorstatus="#c0c0c0" etiquette="" orderby="99 Alpe d'Huez-Oz" descclient="" type="liaison_hd_bk" msg_langen="" status_langen="Closed – Off Season">
+					<PLAGES>
+					</PLAGES>
+				</Liaison>
+				<Liaison ent_id="1" sct_id="12" nom="Alpe d'Huez-Vaujany" etat="H" pag_id="2" prl_id="134786" msg="" etat_comp="" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="23:59" plagesheures="" ishide="1" status="Hors période d'exploitation" colorstatus="#c0c0c0" etiquette="" orderby="99 Alpe d'Huez-Vaujany" descclient="" type="liaison_hd_bk" msg_langen="" status_langen="Closed – Off Season">
+					<PLAGES>
+					</PLAGES>
+				</Liaison>
+				<Liaison ent_id="1" sct_id="12" nom="Alpe d'Huez-Villard" etat="H" pag_id="2" prl_id="134787" msg="" etat_comp="" heuredeb="00:00" heurefin="23:59" heuredebmod="00:00" heurefinmod="23:59" heuredesc="23:59" heuredescmod="23:59" plagesheures="" ishide="1" status="Hors période d'exploitation" colorstatus="#c0c0c0" etiquette="" orderby="99 Alpe d'Huez-Villard" descclient="" type="liaison_hd_bk" msg_langen="" status_langen="Closed – Off Season">
+					<PLAGES>
+					</PLAGES>
+				</Liaison>
+			</SECTEUR>
+		</ETATS>
+ 
+		<WEBCAMS> 
+		</WEBCAMS> 
+ 
+ 
+	</STATION> 
+</SKIPLAN>
