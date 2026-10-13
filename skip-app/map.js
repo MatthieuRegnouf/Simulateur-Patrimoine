@@ -184,6 +184,13 @@ const SkiMap = (() => {
           g.strokeStyle = '#d0021b'; g.lineWidth = 3; g.beginPath(); g.arc(q[0], q[1], 7, 0, 7); g.stroke();
         }
       }
+      if (M.track && M.track.length > 1) {   // parcours réellement enregistré par le GPS (distinct de l'itinéraire prévu)
+        g.lineCap = g.lineJoin = 'round'; g.setLineDash([]);
+        const tp = () => { g.beginPath(); M.track.forEach((p, i) => { const q = P(p[0], p[1]); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); }); };
+        tp(); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 8; g.stroke(); tp(); g.strokeStyle = '#d6336c'; g.lineWidth = 4; g.stroke();
+        const s0 = P(M.track[0][0], M.track[0][1]), e0 = P(M.track[M.track.length - 1][0], M.track[M.track.length - 1][1]);
+        [[s0, '#1fb04a'], [e0, '#12213a']].forEach(([q, c]) => { g.fillStyle = c; g.beginPath(); g.arc(q[0], q[1], 6.5, 0, 7); g.fill(); g.lineWidth = 2.5; g.strokeStyle = '#fff'; g.stroke(); });
+      }
       // étiquettes : une seule passe, avec évitement des chevauchements. Priorité : étiquettes de l'itinéraire, puis lieux, puis points d'intérêt.
       if (M.labels) {
         const placed = [], fits = (x, y, w, h) => { for (const r of placed) if (x < r[0] + r[2] && x + w > r[0] && y < r[1] + r[3] && y + h > r[1]) return false; return true; };
@@ -258,6 +265,12 @@ const SkiMap = (() => {
         let z = 18; for (; z > 11; z -= .25) { const A = wx(la1, lo0, z), B = wx(la0, lo1, z); if (B[0] - A[0] <= aw && B[1] - A[1] <= ah) break; }
         M.z = clampZ(Math.min(z, 17)); const A = wx(la1, lo0, M.z), B = wx(la0, lo1, M.z), mx = (A[0] + B[0]) / 2 + (pad.r - pad.l) / 2, my = (A[1] + B[1]) / 2 + (pad.b - pad.t) / 2;
         [M.lat, M.lng] = unwx(mx, my, M.z); M.follow = false; ask();
+      },
+      setTrack(pts) { M.track = pts; ask(); },
+      fitTrack() {
+        const t = M.track; if (!t || !t.length) return; let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; t.forEach(p => { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); });
+        const aw = Math.max(40, M.w - 40), ah = Math.max(40, M.h - 40); let z = 17; for (; z > 11; z -= .25) { const A = wx(la1, lo0, z), B = wx(la0, lo1, z); if (B[0] - A[0] <= aw && B[1] - A[1] <= ah) break; }
+        M.z = clampZ(z); [M.lat, M.lng] = [(la0 + la1) / 2, (lo0 + lo1) / 2]; M.follow = false; ask();
       },
       centerOn(lat, lng, z) { M.lat = lat; M.lng = lng; if (z) M.z = clampZ(z); ask(); },
       setFollow(on, z) { M.follow = on; if (on && M.pos) { M.lat = M.pos[0]; M.lng = M.pos[1]; if (z) M.z = clampZ(z); } opt.onFollow && opt.onFollow(on); ask(); },

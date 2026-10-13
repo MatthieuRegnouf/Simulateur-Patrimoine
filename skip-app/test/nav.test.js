@@ -59,7 +59,8 @@ test('textes de statut : refus et indisponibilité', () => {
 });
 test('profil : critères issus des seuls champs existants, champs ignorés listés', () => {
   const c = N.profileCriteria(E, { level: 5, levelSet: true, wants: ['Progresser', 'Photos'], discipline: 'ski' });
-  assert.ok(c.hi >= E.levelOf(5).n && c.hi <= 5); assert.equal(c.missing.length, 0);
+  assert.equal(c.hi, 6.5);   // niveau 5 + progresser : jusqu'à 6,5 sur 10
+  assert.ok(c.hi <= 10 && c.lo >= 1); assert.equal(c.missing.length, 0);
   assert.ok(c.ignored.some(x => /photos/.test(x.label))); assert.ok(c.used.every(u => ['level', 'want', 'disc'].includes(u.k)));
   const sb = N.profileCriteria(E, { level: 5, levelSet: true, wants: ['Balade'], discipline: 'snowboard' }); assert.equal(sb.walk, false); assert.equal(sb.speed, 'slow');
 });
@@ -69,7 +70,7 @@ test('profil : niveau non renseigné signalé ; ajustement temporaire sans touch
   const t = N.profileCriteria(E, pr, { level: 7 }); assert.equal(t.missing.length, 0); assert.equal(t.level, 7); assert.equal(JSON.stringify(pr), snap);
 });
 test('profil : famille ne dépasse jamais le niveau ; rouge sportive ignorée pour un débutant', () => {
-  const f = N.profileCriteria(E, { level: 4, levelSet: true, wants: ['Progresser', 'Famille'], discipline: 'ski' }); assert.ok(f.hi <= E.levelOf(4).n);
+  const f = N.profileCriteria(E, { level: 4, levelSet: true, wants: ['Progresser', 'Famille'], discipline: 'ski' }); assert.ok(f.hi <= 4);   // famille : jamais au-dessus du niveau (sur 10)
   const b = N.profileCriteria(E, { level: 2, levelSet: true, wants: ['Rouge sportive'], discipline: 'ski' }); assert.ok(b.ignored.some(x => /rouge/.test(x.label)));
 });
 test('suivi manuel : jump replace la progression au début de l\'étape', () => {

@@ -97,7 +97,7 @@ const Engine = (() => {
       if (ok && seg.type === 'piste' && x.km && seg.dist > 0) { const r = seg.dist / (x.km * 1000); ok = r >= 0.5 && r <= 1.6; }
       return { x, cost, ok };
     }).filter(c => c.ok).sort((a, b) => a.cost - b.cost);
-    return { type: seg.type, cands: scored.slice(0, 4).map(c => c.x.id), altFrom: seg.altFrom, altTo: seg.altTo, t: seg.t, auto: true };
+    return { type: seg.type, cands: scored.slice(0, 4).map(c => c.x.id), altFrom: seg.altFrom, altTo: seg.altTo, t: seg.t, t0: seg.t - (seg.dur || 0) * 60000, auto: true };
   }
 
 

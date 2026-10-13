@@ -18,16 +18,17 @@
   <div class="brand">⛷️ <b>SKIP</b></div>
   <select id="station" aria-label="Station"></select>
   <span id="net" class="net" hidden>Hors ligne</span>
+  <button class="gear" data-action="settings" aria-label="Réglages et sources">⚙︎</button>
   <button class="sos" data-action="sos" aria-label="Appeler le 112">SOS</button>
 </header>
 <main id="view"></main>
 <nav class="tabs" id="tabs">
   <button data-tab="pistes"><i>🎿</i>Pistes</button>
   <button data-tab="route"><i>🧭</i>Itinéraire</button>
-  <button data-tab="weather"><i>⛅</i>Météo</button>
   <button data-tab="day"><i>📍</i>Ma journée</button>
   <button data-tab="meet"><i>👥</i>Rencontres</button>
-  <button data-tab="about"><i>⭐</i>SKIP</button>
+  <button data-tab="weather"><i>⛅</i>Météo</button>
+  <button data-tab="share"><i>🔗</i>Partage</button>
 </nav>
 <div id="sheet" class="sheet" hidden></div>
 <div id="pocket" class="pocket" hidden></div>
@@ -46,6 +47,9 @@
 <script src="offline.js"></script>
 <script src="voice.js"></script>
 <script src="navui.js"></script>
+<script src="trackcalc.js"></script>
+<script src="outing.js"></script>
+<script src="social.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

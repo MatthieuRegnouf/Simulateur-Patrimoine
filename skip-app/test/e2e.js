@@ -28,13 +28,13 @@ const run = (cmd, args) => spawn(cmd, args, { cwd: ROOT, stdio: 'ignore' });
     // itinéraire par difficulté ressentie
     await p.click('[data-tab=route]');
     const cols = async (lo, hi) => { await p.evaluate(([l, h]) => { S.rf.lo = l; S.rf.hi = h; S.rf.mode = 'felt'; generate(false); }, [lo, hi]); return p.evaluate(() => [...new Set(plan.steps.filter(s => s.kind === 'piste').map(s => s.color))]); };
-    const easy = await cols(1, 1), hard = await cols(4, 5);
-    assert.ok(!easy.includes('red') && !easy.includes('black')); assert.ok(hard.includes('red') || hard.includes('black')); ok(`niveau 1 : ${easy} ; niveaux 4-5 : ${hard}`);
+    const easy = await cols(1, 2), hard = await cols(6, 10);
+    assert.ok(!easy.includes('red') && !easy.includes('black')); assert.ok(hard.includes('red') || hard.includes('black')); ok(`difficulté 1–2/10 : ${easy} ; 6–10/10 : ${hard}`);
     const t = await p.evaluate(() => plan.times); assert.equal(t.wait, 0); assert.ok((await p.textContent('#view')).includes('information indisponible')); ok('attente inconnue : affichée comme indisponible, non comptée');
     assert.ok((await p.textContent('#view')).includes('Pourquoi cet itinéraire')); ok('explication de l\'itinéraire affichée');
 
     // invitations : règles
-    await p.click('[data-tab=day]'); await p.click('[data-bind=nenabled]'); await p.waitForTimeout(200);
+    await p.click('[data-action=settings]'); await p.click('[data-bind=nenabled]'); await p.waitForTimeout(200); await p.click('[data-action=close]');
     const rules = await p.evaluate(() => { const id = 'jeux-green', a = canPrompt(id); trk.dir = -1; const d = canPrompt(id); trk.dir = 0; promptRate(id, null); const rep = canPrompt(id); setVote('rousses-red', 6); return [a, d, rep, canPrompt('rousses-red')]; });
     assert.deepEqual(rules, [true, false, false, false]); ok('invitation : autorisée, jamais en descente, jamais deux fois, jamais si déjà notée');
     await p.click('#prompt [data-action=qopen]'); assert.ok((await p.textContent('#sheet h2')).includes('Alors, cette piste')); ok('un clic ouvre directement la fiche de notation');

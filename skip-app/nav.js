@@ -152,18 +152,19 @@ const Nav = (() => {
     const level = tmp.level != null ? tmp.level : pr.level, wants = tmp.wants || pr.wants || [];
     const missing = [];
     if (!pr.levelSet && tmp.level == null) missing.push('level');
-    const L = Engine.levelOf(level).n, used = [], ignored = [];
-    let hi = L, lo = 1, speed = null, walk = null;
-    used.push({ k: 'level', label: `Niveau ${level}/10`, effect: `pistes jusqu'au palier ${L}/5 (${Engine.LEVELS[L - 1].label.toLowerCase()})` });
-    if (wants.includes('Progresser')) { hi = Math.min(5, Engine.levelOf(Math.min(10, level + 1)).n); used.push({ k: 'want', label: 'Envie : progresser', effect: `un palier au-dessus du niveau possible (jusqu'à ${hi}/5)` }); }
-    if (wants.includes('Rouge sportive')) { const r = Engine.levelOf(Engine.COLOR_LEVEL.red).n; if (level >= 4) { hi = Math.max(hi, Math.min(r, Engine.levelOf(level + 2).n)); lo = Math.max(lo, Math.max(1, hi - 1)); used.push({ k: 'want', label: 'Envie : rouge sportive', effect: `pistes plutôt exigeantes (paliers ${lo} à ${hi}/5)` }); } else ignored.push({ label: 'Envie : rouge sportive', why: 'ignorée : ton niveau est trop bas pour ce choix' }); }
-    if (wants.includes('Famille')) { hi = Math.min(hi, L); lo = Math.min(lo, hi); used.push({ k: 'want', label: 'Envie : famille', effect: `pas au-dessus de ton niveau (max ${hi}/5)` }); }
+    const used = [], ignored = [], r5 = x => Math.round(x * 2) / 2;
+    let hi = level, lo = 1, speed = null, walk = null;   // difficulté sur 10, comme la notation des pistes
+    used.push({ k: 'level', label: `Niveau ${level}/10`, effect: `pistes jusqu'à ${fmtN(hi)}/10` });
+    if (wants.includes('Progresser')) { hi = Math.min(10, level + 1.5); used.push({ k: 'want', label: 'Envie : progresser', effect: `un cran au-dessus du niveau possible (jusqu'à ${fmtN(r5(hi))}/10)` }); }
+    if (wants.includes('Rouge sportive')) { if (level >= 4) { hi = Math.max(hi, Math.min(level + 2, 7.5)); lo = Math.max(lo, Math.max(1, hi - 2.5)); used.push({ k: 'want', label: 'Envie : rouge sportive', effect: `pistes plutôt exigeantes (${fmtN(r5(lo))} à ${fmtN(r5(hi))}/10)` }); } else ignored.push({ label: 'Envie : rouge sportive', why: 'ignorée : ton niveau est trop bas pour ce choix' }); }
+    if (wants.includes('Famille')) { hi = Math.min(hi, level); lo = Math.min(lo, hi); used.push({ k: 'want', label: 'Envie : famille', effect: `pas au-dessus de ton niveau (max ${fmtN(r5(hi))}/10)` }); }
     if (wants.includes('Balade')) { speed = 'slow'; used.push({ k: 'want', label: 'Envie : balade', effect: 'rythme lent' }); }
     if (pr.discipline === 'snowboard') { walk = false; used.push({ k: 'disc', label: 'Snowboard', effect: 'chemins à pied évités' }); } else if (pr.discipline) used.push({ k: 'disc', label: 'Ski', effect: 'aucun réglage particulier' });
     for (const w of ['Pause chocolat', 'Photos']) if (wants.includes(w)) ignored.push({ label: `Envie : ${w.toLowerCase()}`, why: 'non utilisée : aucune donnée du réseau ne permet de la prendre en compte' });
-    if (hi < lo) lo = hi;
+    hi = r5(Math.max(1, Math.min(10, hi))); lo = r5(Math.min(lo, hi));
     return { lo, hi, speed, walk, used, ignored, missing, level, wants };
   }
+  const fmtN = x => String(x).replace('.', ',');
 
   return { dist, build, proj, best, quality, corridor, create, update, tick, indexNet, hereOn, jump, bearing, compass, recalcStart, remaining, stepRemaining, atEnd, statusText, profileCriteria, WANTS, GOOD_M, FAIR_M, STALE_MS, OFF_FIXES, OFF_MS };
 })();

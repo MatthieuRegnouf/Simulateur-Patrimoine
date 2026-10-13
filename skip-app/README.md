@@ -69,3 +69,11 @@ Les prévisions viennent de l'API publique MET Norway (`api.met.no`, autorise la
 - Suivi : position mesurée (jamais recalée), progression et validation d'étape séparées, « Près de : piste X » ou liste des pistes proches quand c'est ambigu.
 - Voix : réglages (voix, débit, volume, extrait), annonces courtes sans répétition (`voice.js`, `test/voice.test.js`).
 - Hors ligne : taille annoncée (≈ 5,9 Mo), tableau « point par point » de ce qui marche sans réseau.
+
+### Organisation (mise à jour)
+- Onglets : Pistes · Itinéraire · Ma journée · Rencontres · Météo · Partage. Réglages et sources : bouton ⚙︎ (notifications, voix, licences, réinitialisation).
+- **Itinéraire** : Départ, arrivée, durée, difficulté (Mon profil · Ressentie /10 · Couleurs) → « Créer mon itinéraire » → résumé + « Ouvrir le GPS ». Options avancées et téléchargement hors ligne en secondaire. Difficulté partout sur 10 ; un ancien réglage sur 5 est converti explicitement (annoncé), les notes de pistes n'ont jamais été sur 5.
+- **Ma journée** : « Démarrer ma sortie » enregistre le parcours GPS (pause, reprise, arrêt confirmé) ; bilan avec carte, pistes parcourues (identifiées par le tracé GPS, sinon « à confirmer »), durée, distance, dénivelé ≈. Fin de journée = arrêt confirmé par l'utilisateur (une sortie ouverte > 12 h sans position est refermée à son dernier point et signalée).
+- **Rencontres** : intention du moment (valable le jour même) distincte du profil permanent (niveau, envies, disponibilités, zone) ; compatibilité lisible d'un coup d'œil.
+- **Partage** : invitations par lien (`#invite=`), réponse (`#accept=`), mise à jour (`#hello=`) ; sans serveur, aucune notification : l'invitant n'est prévenu que s'il ouvre le lien de réponse. Pas d'annuaire : la recherche porte sur les personnes déjà connues de l'appareil.
+- Tests : `node --test test/*.test.js` ; `node test/e2e.js`, `node test/e2e-nav.js`, `node test/e2e-app.js`.
