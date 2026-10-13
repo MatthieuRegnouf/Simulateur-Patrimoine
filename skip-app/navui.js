@@ -13,7 +13,7 @@ async function loadBasemap(prefer) {
 }
 const frDate = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '';
 const baseNote = () => bm.busy ? 'Chargement du fond de carte…' : bm.pm
-  ? (bm.from === 'device' ? '🗺 Fond de carte gardé sur ton téléphone : il fonctionne sans réseau.' : '🗺 Fond de carte lu par le réseau. Télécharge l\'itinéraire pour l\'avoir sans réseau.') + (bm.date ? ` Données OpenStreetMap du ${frDate(bm.date)}.` : '')
+  ? (bm.from === 'embedded' ? '🗺 Fond de carte intégré à cet aperçu.' : bm.from === 'device' ? '🗺 Fond de carte gardé sur ton téléphone : il fonctionne sans réseau.' : '🗺 Fond de carte lu par le réseau. Télécharge l\'itinéraire pour l\'avoir sans réseau.') + (bm.date ? ` Données OpenStreetMap du ${frDate(bm.date)}.` : '')
   : '⚠︎ Pas de fond de carte : ' + (bm.error || 'indisponible.') + ' Le tracé et les étapes restent affichés.';
 function updateBaseNote() { const n = $('#pvnote'); if (n) n.textContent = baseNote(); }
 function netEdges() { return netCache || (netCache = NET.edges.map(e => ({ k: e.k, c: e.c, g: NET.geom(e) }))); }

@@ -16,6 +16,9 @@ const Offline = (() => {
         if (r) { const buf = await r.arrayBuffer(); if (magicOk(buf)) return { pm: SkiMap.openPM(new SkiMap.MemSource(buf, 'device')), from: 'device', bytes: buf.byteLength }; }
       } catch { /* copie illisible : on essaie le réseau */ }
     }
+    if (typeof window !== 'undefined' && window.SKIP_BASEMAP_B64) {   // aperçu en ligne : fond de carte embarqué dans la page
+      try { const bin = atob(window.SKIP_BASEMAP_B64), buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i); if (magicOk(buf.buffer)) return { pm: SkiMap.openPM(new SkiMap.MemSource(buf.buffer, 'embedded')), from: 'embedded', bytes: buf.length }; } catch { /* repli réseau */ }
+    }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return { pm: null, error: 'Hors ligne et fond de carte non téléchargé.' };
     try {
       const pm = SkiMap.openPM(new SkiMap.RangeSource(SH.basemap)); await pm.getHeader();
