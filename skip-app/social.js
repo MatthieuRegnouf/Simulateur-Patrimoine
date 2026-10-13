@@ -47,7 +47,7 @@ function socialDeepLink(h) {
   let o; try { o = b64d(m[2]); } catch { toast('Lien d\'invitation illisible : demande à ton ami de le renvoyer en entier.', 6000); return true; }
   const f = cleanProfile(o && o.f); if (!f) { toast('Lien d\'invitation non reconnu.', 5000); return true; }
   if (f.u === meId()) { toast('C\'est ton propre lien : envoie-le à un ami.', 4500); return true; }
-  S.tab = 'share'; const iid = typeof o.i === 'string' ? o.i.slice(0, 20) : '';
+  S.tab = 'meet'; S.meetView = 'friends'; const iid = typeof o.i === 'string' ? o.i.slice(0, 20) : '';
   if (m[1] === 'accept') {
     const sent = S.invites.sent.find(x => x.id === iid); if (sent) sent.status = 'accepted', sent.by = f.u;
     addFriend(f, 'accept'); save(); render(); toast(`${f.n} a accepté ton invitation et rejoint tes amis.`, 6000); return true;
@@ -113,9 +113,10 @@ function peopleHtml() {
     ${f.w.length ? `<div class="mut">Envies : ${f.w.map(esc).join(' · ')}</div>` : ''}${f.sl && f.sl.length ? `<div class="mut">Disponible : ${f.sl.map(s => SLOTS[s]).join(', ').toLowerCase()}</div>` : ''}
     ${netLinks(f.so) ? `<div class="chips" style="margin-top:8px">${netLinks(f.so)}</div>` : ''}</div>`).join('');
 }
-function renderMeet() {
-  const pr = S.profile, it = intentNow(S.intent) || { k: 'none', when: 'now', zone: '' }, st = station(), msgs = S.chat[chatKey()] || [];
-  const need = [!pr.pseudo && 'pseudo', !S.levelSet && 'niveau'].filter(Boolean);
+function profileMissing() { return [!S.profile.pseudo && 'pseudo', !S.levelSet && 'niveau'].filter(Boolean); }
+/* Mon profil : gestion de MON profil, dans Réglages (les profils des autres se consultent dans Rencontres) */
+function profileSettingsHtml() {
+  const pr = S.profile, st = station(), need = profileMissing();
   const netRows = Object.entries(NETWORKS).map(([k, n]) => {
     const h = pr.socials[k];
     if (h) return `<div class="net-row"><b class="sp">${n.name}</b><a href="${n.url(encodeURIComponent(h))}" target="_blank" rel="noopener noreferrer">@${esc(h)} ↗</a><button class="btn sm ghost" data-action="netdel" data-k="${k}">Retirer</button></div>`;
@@ -123,26 +124,35 @@ function renderMeet() {
       <input type="text" id="nethandle" placeholder="ton identifiant" maxlength="40" aria-label="Identifiant ${n.name}" autocapitalize="off"><button class="btn sm" data-action="netsave" data-k="${k}">OK</button></div>`;
     return `<div class="net-row"><b class="sp">${n.name}</b><button class="btn sm sec" data-action="netedit" data-k="${k}">Connecter</button></div>`;
   }).join('');
-  return `<h2>Rencontres</h2>
-  <div class="card"><b>Mon intention du moment</b> <span class="mut">· valable aujourd'hui</span>
-    <div style="margin-top:8px">${Object.entries(INTENTS).map(([k, t]) => `<button class="chip${it.k === k ? ' on' : ''}" style="display:block;width:100%;text-align:left;margin-bottom:6px" data-action="intent" data-k="${k}">${t}</button>`).join('')}</div>
-    ${it.k !== 'none' ? `<div class="mut">Quand ?</div><div class="chips" style="margin:4px 0 8px">${Object.entries(WHENS).map(([k, t]) => `<button class="chip${it.when === k ? ' on' : ''}" data-action="iwhen" data-k="${k}">${t}</button>`).join('')}</div>
-      <div class="mut">Où ?</div><select class="f" data-bind="izone" aria-label="Zone"><option value="">Toute la station</option>${Object.entries(st.sectors).map(([id, n]) => `<option value="${id}" ${it.zone === id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
-      <button class="btn sm sec" style="margin-top:8px" data-action="sharehello">📤 Prévenir mes amis</button><div class="mut" style="margin-top:4px">Sans serveur, tes amis voient ton intention quand ils ouvrent ce lien.</div>` : ''}</div>
-  <h3>Mon réseau</h3>${peopleHtml()}
-  <details class="card" style="padding:10px 14px" ${need.length ? 'open' : ''}><summary><b>Mon profil</b> ${need.length ? `<span class="badge st-warn">à compléter : ${need.join(', ')}</span>` : ''}</summary>
+  return `<div class="card"><b>👤 Mon profil</b> ${need.length ? `<span class="badge st-warn">à compléter : ${need.join(', ')}</span>` : ''}
     <div class="mut" style="margin:8px 0 4px">Pseudo <b>*</b></div><input type="text" id="pseudo" value="${esc(pr.pseudo)}" maxlength="30" placeholder="Ton pseudo" aria-label="Pseudo">
-    <div class="mut" style="margin:10px 0 4px">Niveau <b>*</b> : ${S.levelSet ? S.level + '/10' : 'non renseigné'}</div><input type="range" min="1" max="10" step="0.5" value="${S.level}" data-range="level2" aria-label="Mon niveau">
+    <div class="mut" style="margin:10px 0 4px">Niveau de ski <b>*</b> : <b>${S.levelSet ? S.level + '/10' : 'non renseigné'}</b></div><input type="range" min="1" max="10" step="0.5" value="${S.level}" data-range="level2" aria-label="Mon niveau">
     <div class="mut" style="margin:10px 0 4px">Je pratique</div><div class="seg">${[['ski', '⛷ Ski'], ['snowboard', '🏂 Snowboard']].map(([k, t]) => `<button class="${pr.discipline === k ? 'on' : ''}" data-action="disc" data-k="${k}">${t}</button>`).join('')}</div>
     <div class="mut" style="margin:10px 0 4px">Ce que j'aime faire</div><div class="chips">${WANTS.map(w => `<button class="chip${pr.wants.includes(w) ? ' on' : ''}" data-action="want" data-w="${w}">${w}</button>`).join('')}</div>
     <div class="mut" style="margin:10px 0 4px">Je skie plutôt</div><div class="chips">${Object.entries(SLOTS).map(([k, t]) => `<button class="chip${(pr.slots || []).includes(k) ? ' on' : ''}" data-action="slot" data-k="${k}">${t}</button>`).join('')}</div>
     <div class="mut" style="margin:10px 0 4px">Ma zone habituelle</div><select class="f" data-bind="pzone" aria-label="Zone habituelle"><option value="">Toute la station (${esc(st.name)})</option>${Object.entries(st.sectors).map(([id, n]) => `<option value="${id}" ${pr.zone === id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
-    <div class="mut" style="margin-top:8px"><b>*</b> indispensable pour inviter et être reconnu. Le reste est facultatif. Le niveau sert aussi au calcul d'itinéraire.</div>
-    <details style="margin-top:8px"><summary class="mut">Mes réseaux (facultatif)</summary>${netRows}</details></details>
+    <div class="mut" style="margin-top:8px"><b>*</b> indispensable pour inviter et être reconnu. Mon niveau sert aussi au calcul d'itinéraire (« Mon profil »).</div>
+    <details style="margin-top:8px"><summary class="mut">Mes réseaux (facultatif)</summary>${netRows}</details></div>`;
+}
+function findHtml() {
+  const it = intentNow(S.intent) || { k: 'none', when: 'now', zone: '' }, st = station(), msgs = S.chat[chatKey()] || [];
+  return `<div class="card"><b>Mon intention du moment</b> <span class="mut">· valable aujourd'hui</span>
+    <div style="margin-top:8px">${Object.entries(INTENTS).map(([k, t]) => `<button class="chip${it.k === k ? ' on' : ''}" style="display:block;width:100%;text-align:left;margin-bottom:6px" data-action="intent" data-k="${k}">${t}</button>`).join('')}</div>
+    ${it.k !== 'none' ? `<div class="mut">Quand ?</div><div class="chips" style="margin:4px 0 8px">${Object.entries(WHENS).map(([k, t]) => `<button class="chip${it.when === k ? ' on' : ''}" data-action="iwhen" data-k="${k}">${t}</button>`).join('')}</div>
+      <div class="mut">Où ?</div><select class="f" data-bind="izone" aria-label="Zone"><option value="">Toute la station</option>${Object.entries(st.sectors).map(([id, n]) => `<option value="${id}" ${it.zone === id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <button class="btn sm sec" style="margin-top:8px" data-action="sharehello">📤 Prévenir mes amis</button>` : ''}</div>
+  <h3>Avec qui skier ou sortir</h3>${peopleHtml()}
   <details class="card" style="padding:10px 14px"><summary><b>💬 Chat de la station</b></summary>
-    <div class="mut" style="margin:6px 0">Remis à zéro chaque jour. Pour l'instant, sans serveur, il reste sur ce téléphone.</div>
+    <div class="mut" style="margin:6px 0">Remis à zéro chaque jour, sur ce téléphone.</div>
     ${msgs.length ? msgs.map(m => `<div class="msg${m.me ? ' me' : ''}"><b>${esc(m.who)}</b> <span class="mut">niv. ${m.lvl} · ${esc(m.t)}</span><br>${esc(m.text)}</div>`).join('') : '<p class="mut">Aucun message aujourd\'hui.</p>'}
     <div class="row" style="margin-top:8px"><input type="text" id="chatin" placeholder="Écrire à la station…" maxlength="300" aria-label="Message"><button class="btn sm" data-action="send">Envoyer</button></div></details>`;
+}
+function renderMeet() {
+  const v = S.meetView === 'friends' ? 'friends' : 'find', need = profileMissing(), pend = S.invites.recv.filter(r => r.status === 'pending').length;
+  return `<h2>Rencontres</h2>
+  <div class="seg" style="margin-bottom:10px"><button class="${v === 'find' ? 'on' : ''}" data-action="meetview" data-v="find">Skier / sortir</button><button class="${v === 'friends' ? 'on' : ''}" data-action="meetview" data-v="friends">Amis et invitations${pend ? ' (' + pend + ')' : ''}</button></div>
+  ${need.length ? `<div class="warn">Complète ton profil (${need.join(', ')}) pour inviter et être reconnu. <button class="btn sm" data-action="settings">Mon profil</button></div>` : ''}
+  ${v === 'find' ? findHtml() : friendsHtml()}`;
 }
 
 /* ---------- Partage ---------- */
@@ -163,11 +173,10 @@ function searchHtml() {
     ${res.map(({ f, st }) => `<div class="row" style="padding:6px 0;border-top:1px solid var(--line)"><div class="sp">${personCardHtml(f, `<br><span class="mut">${st}${f.addedAt ? ' · ajouté le ' + new Date(f.addedAt).toLocaleDateString('fr-FR') : ''}</span>`)}</div><button class="btn sm sec" data-action="invfor" data-n="${esc(f.n)}">Inviter</button></div>`).join('')}
     ${sent.map(s => `<div class="mut" style="padding:4px 0">Invitation envoyée « ${esc(s.to)} » le ${new Date(s.t).toLocaleDateString('fr-FR')} · ${s.status === 'accepted' ? 'acceptée' : 'en attente de réponse'}</div>`).join('')}</div>`;
 }
-function renderShare() {
+function friendsHtml() {
   const sent = S.invites.sent, recv = S.invites.recv, friends = Object.values(S.friends).sort((a, b) => (b.addedAt || b.t) - (a.addedAt || a.t));
   const pending = recv.filter(r => r.status === 'pending');
-  return `<h2>Partage</h2>
-  ${pending.length ? `<div class="warn"><b>${pending.length} invitation(s) reçue(s) en attente.</b> ${pending.map(r => `<button class="btn sm" data-action="invopen" data-id="${esc(r.id)}" data-u="${esc(r.from.u)}">${esc(r.from.n)}</button>`).join(' ')}</div>` : ''}
+  return `${pending.length ? `<div class="warn"><b>${pending.length} invitation(s) reçue(s) en attente.</b> ${pending.map(r => `<button class="btn sm" data-action="invopen" data-id="${esc(r.id)}" data-u="${esc(r.from.u)}">${esc(r.from.n)}</button>`).join(' ')}</div>` : ''}
   <div class="card"><b>Inviter un ami</b>
     <div class="mut" style="margin:4px 0 8px">Crée un lien lié à ton profil et envoie-le. Ton ami l'ouvre, accepte, et vous vous retrouvez dans Rencontres.</div>
     <input type="text" id="invto" maxlength="40" placeholder="Pour qui ? (facultatif, pour t'y retrouver)" aria-label="Nom de l'ami invité">
@@ -186,6 +195,7 @@ function renderShare() {
 
 function socialAction(d) {
   switch (d.action) {
+    case 'meetview': S.meetView = d.v; save(); render(); return true;
     case 'intent': S.intent = { k: d.k, when: (S.intent && S.intent.when) || 'now', zone: (S.intent && S.intent.zone) || '', day: todayKey(), t: Date.now() }; save(); render(); return true;
     case 'iwhen': S.intent = { ...(S.intent || {}), k: (S.intent && S.intent.k) || 'ski', when: d.k, day: todayKey() }; save(); render(); return true;
     case 'slot': { const sl = S.profile.slots || []; S.profile.slots = sl.includes(d.k) ? sl.filter(x => x !== d.k) : [...sl, d.k]; save(); render(); return true; }

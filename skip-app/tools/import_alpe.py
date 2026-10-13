@@ -84,7 +84,10 @@ def build_station(root, with_live=False):
         e['id'] = base if seen[base] == 1 else f"{base}-{seen[base]}"
         out_l.append(e)
     used = {s for e in out_p + out_l for s in e['sectors']}
-    station = {'id': 'alpe', 'name': "Espace Alpe d'Huez", 'updated': root.findtext('DATEINFO', '').strip(),
+    # Numéro d'urgence du domaine skiable : repris du plan des pistes officiel (PDF alpedhuez.com, hiver 2025-2026, mention « Numéro d'urgence domaine skiable »). À revérifier chaque saison.
+    sos = {'name': "Secours sur les pistes · Espace Alpe d'Huez", 'tel': '+33476803738', 'display': '04 76 80 37 38', 'general': '112',
+           'source': "Plan des pistes officiel hiver 2025-2026, Espace Alpe d'Huez (alpedhuez.com)", 'season': '2025-2026'}
+    station = {'id': 'alpe', 'name': "Espace Alpe d'Huez", 'updated': root.findtext('DATEINFO', '').strip(), 'sos': sos,
                'site': {'km': 250, 'pistes': 111, 'colors': {'green': 34, 'blue': 31, 'red': 30, 'black': 16}, 'min': 1300, 'max': 3330},
                'sectors': {s: sectors[s] for s in sorted(used, key=lambda s: sectors[s])}, 'lifts': out_l, 'pistes': out_p}
     return station

@@ -101,7 +101,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       const { ctx, p } = await open(GEO, async pg => { await pg.route('**/basemap/alpe.pmtiles', r => r.fulfill({ status: 200, headers: { 'content-length': '5431935', 'content-type': 'application/octet-stream' }, body: Buffer.alloc(100000, 1) })); });
       await plan(p); await p.click('[data-action=dlstart]'); await p.waitForFunction(() => !dl.run, null, { timeout: 30000 });
       const r = await p.evaluate(() => ({ v: S.route && S.route.verdict, map: S.route && S.route.items.find(i => i.key === 'map') }));
-      assert.ok(r.v === 'partiel' && !r.map.ok && r.map.detail.length > 10, JSON.stringify(r)); assert.match(await p.textContent('#offcard'), /Incomplet/); assert.match(await p.textContent('#offcard'), /⚠︎/); ok(`téléchargement incomplet détecté et expliqué : « ${r.map.detail} »`);
+      assert.ok(r.v === 'partiel' && !r.map.ok && r.map.detail.length > 10, JSON.stringify(r)); assert.match(await p.textContent('#offcard'), /incomplet/i); assert.match(await p.textContent('#offcard'), /⚠︎/); ok(`téléchargement incomplet détecté et expliqué : « ${r.map.detail} »`);
       assert.equal((await p.evaluate(() => Offline.basemapInfo())).stored, false); ok('un fond de carte incomplet n\'est jamais gardé');
       await p.click('[data-action=nstart]'); await p.waitForTimeout(900); assert.ok(await p.$('#ntop')); assert.match(await p.textContent('#ntop'), /Rejoins|écart|Recherche|pas encore/); ok('la navigation reste utilisable sans fond de carte (tracé seul)');
       await ctx.close();

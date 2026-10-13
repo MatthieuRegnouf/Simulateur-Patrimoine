@@ -61,41 +61,33 @@ let dl = { run: false, got: 0, total: 0, items: [], ctl: null };
 const fmtDT = t => new Date(t).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 const mo = b => (b / 1048576).toFixed(1).replace('.', ',') + ' Mo';
 const VERDICT = { 'complet': ['ok', 'Complet'], 'complet-avertissements': ['warn', 'Complet, avec avertissements'], 'partiel': ['warn', 'Incomplet'], 'echec': ['bad', 'Échec'] };
-let offStat = { checked: false, map: null, miss: [] };
+let offStat = { checked: false, map: null, miss: [], can: false };
+/* Le téléchargement hors ligne n'est proposé que s'il peut réellement fonctionner : page servie en http(s) avec service worker actif et stockage disponible (pas dans un aperçu intégré). */
+async function offlineSupport() {
+  if (window.SKIP_BASEMAP_B64 || !/^https?:$/.test(location.protocol) || !('serviceWorker' in navigator) || typeof caches === 'undefined') return false;
+  try { return await Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise(r => setTimeout(() => r(false), 4000))]); } catch { return false; }
+}
 async function refreshOffStat() {
+  const can = await offlineSupport(); if (!can) { offStat = { checked: true, can: false, map: null, miss: [] }; updateOffCard(); return; }
   const bi = await Offline.basemapInfo(), sh = await Offline.checkShell(false);
-  offStat = { checked: true, map: bi.stored, miss: sh.missing, supported: bi.supported }; updateOffCard();
+  offStat = { checked: true, can: true, map: bi.stored, miss: sh.missing }; updateOffCard();
 }
-function itemsHtml(items) {   // seuls les problèmes sont listés : pas de coches pour ce qui va bien
-  const bad = items.filter(it => !it.ok); return bad.map(it => `<div class="mut" style="margin-top:4px">⚠︎ ${esc(it.label)} : ${esc(it.detail || '')}</div>`).join('');
-}
-/* Ce qui marche sans réseau, mesuré sur l'état réel du téléchargement (pas promis d'avance) */
-function whatWorksHtml(sv) {
-  const it = k => sv && sv.items && sv.items.find(i => i.key === k), mapOk = !!(it('map') && it('map').ok) && offStat.map !== false, appOk = !!(it('app') && it('app').ok) && !(offStat.checked && offStat.miss.length), routeOk = !!(it('route') && it('route').ok);
-  const localVoice = Voice.list(getVoices(), false).some(v => v.local), row = (t, d) => `<div style="margin-top:6px"><b>${t}</b><div class="mut">${d}</div></div>`;
-  return `<div style="margin-top:6px">
-    ${row('Carte', !sv || mapOk ? 'Fond de carte, noms des pistes et remontées, tracé : sur le téléphone.' : 'Sans le fond de carte téléchargé : tracé et noms seulement.')}
-    ${row('Position', 'GPS du téléphone, sans internet (premier point parfois plus lent). Arrêté si l\'écran s\'éteint.')}
-    ${row('Guidage', !sv || (appOk && routeOk) ? 'Progression, instruction courte, sortie de parcours : calculés sur le téléphone.' : 'Incomplet : retélécharge l\'itinéraire.')}
-    ${row('Recalcul', 'Possible sur le téléphone, à moins de 150 m d\'un point connu du réseau, avec les fermetures enregistrées. Sinon : direction du tracé le plus proche.')}
-    ${row('Voix', localVoice ? 'Une voix locale est installée : elle parle sans réseau.' : 'Pas de voix locale détectée : instructions écrites seulement hors ligne.')}
-    ${row('Besoin du réseau', 'Ouverture et attentes en direct, météo, mises à jour. Hors ligne : dernières données enregistrées et datées.')}</div>`;
+function itemsHtml(items) {   // seuls les manques qui empêchent l'usage hors ligne sont signalés, en une phrase
+  const msg = { route: 'Itinéraire non enregistré.', app: 'L\'application n\'est pas complète hors ligne : reconnecte-toi puis mets à jour.', map: 'Fond de carte non téléchargé : réessaie avec une meilleure connexion (le tracé reste utilisable).' };
+  return items.filter(it => !it.ok && it.required).map(it => `<div class="mut" style="margin-top:4px">⚠︎ ${msg[it.key] || esc(it.label)}</div>`).join('');
 }
 function offCardHtml() {
   const sv = S.route && S.route.stationId === S.station ? S.route : null, cur = plan && sv && sv.planId === planId(plan);
-  if (dl.run) return `<b>📥 Téléchargement…</b><div class="bar" style="margin:8px 0"><i id="dlbar" style="width:${dl.total ? Math.round(dl.got / dl.total * 100) : 5}%"></i></div><div class="mut" id="dltxt">${dl.total ? `Fond de carte : ${mo(dl.got)} sur ${mo(dl.total)}` : 'Préparation…'}</div>${itemsHtml(dl.items)}<button class="btn sm ghost" style="margin-top:8px" data-action="dlcancel">Annuler</button>`;
-  if (!sv) return plan ? `<div class="row"><button class="btn sec" data-action="dlstart">📥 Télécharger hors ligne</button></div>
-      <div class="mut" style="margin-top:6px">≈ 5,9 Mo : carte du domaine, tracé, étapes et instructions. Le GPS du téléphone fonctionne sans réseau.</div>
-      <details style="margin-top:6px"><summary class="mut">Ce qui marche hors ligne</summary>${whatWorksHtml(null)}<div class="mut" style="margin-top:6px">Fond de carte : données OpenStreetMap en un seul fichier (les tuiles du site openstreetmap.org ne peuvent pas être gardées hors ligne : c'est interdit).</div></details>` : '';
-  const full = sv.items && sv.verdict === 'complet', warn = sv.items ? VERDICT[sv.verdict] || VERDICT.partiel : ['warn', 'Ancien enregistrement'];
-  const mapGone = offStat.checked && sv.items && sv.items.find(i => i.key === 'map' && i.ok) && offStat.map === false, shellGone = offStat.checked && offStat.miss.length;
-  return `<b>📥 Hors ligne</b> <span class="badge st-${full ? 'ok' : warn[0]}">${full ? 'disponible' : warn[1]}</span>
-    <div class="mut" style="margin:4px 0">Téléchargé le ${fmtDT(sv.savedAt)} · ${sv.plan.steps.length} étapes${cur ? '' : ' · autre itinéraire que celui affiché'}${navigator.onLine ? '' : ' · <b>sans réseau</b>'}</div>
-    ${sv.items ? itemsHtml(sv.items) : '<div class="mut">Cet ancien enregistrement ne contient pas le fond de carte : retélécharge-le.</div>'}
-    ${mapGone ? '<div class="warn" style="margin-top:6px">Le téléphone a effacé le fond de carte téléchargé. Retélécharge l\'itinéraire.</div>' : ''}${shellGone ? `<div class="warn" style="margin-top:6px">Fichiers de l'appli absents du cache (${esc(offStat.miss.join(', '))}). Reconnecte-toi puis mets à jour.</div>` : ''}
-    <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-action="${cur ? 'nstart' : 'loadsaved'}">${cur ? '🧭 Ouvrir le GPS' : 'Ouvrir cet itinéraire'}</button><button class="btn sm sec" data-action="dlstart" ${navigator.onLine ? '' : 'disabled'}>${full ? 'Mettre à jour' : 'Réessayer'}</button><button class="btn sm ghost" data-action="delsaved">Supprimer</button></div>
-    <details style="margin-top:8px"><summary class="mut">Données enregistrées et ce qui marche sans réseau</summary>
-      <div class="mut" style="margin-top:6px">${sv.liveAt ? `Ouverture des pistes : instantané du ${esc(dm(sv.liveAt))} à ${esc(hm(sv.liveAt))}, pas du direct.` : 'Ouverture des pistes : non enregistrée.'} ${sv.wxAt ? `Météo : prévisions du ${esc(dm(sv.wxAt))} à ${esc(hm(sv.wxAt))}, pas du direct.` : 'Météo : non enregistrée.'} Attentes : estimations.${sv.mapDate ? ` Fond de carte : données OpenStreetMap du ${frDate(sv.mapDate)}.` : ''}</div>${whatWorksHtml(sv)}</details>`;
+  if (!offStat.checked) return '';
+  if (!offStat.can) return '<div class="mut">Disponible en ligne uniquement.</div>';
+  if (dl.run) return `<b>📥 Téléchargement…</b><div class="bar" style="margin:8px 0"><i id="dlbar" style="width:${dl.total ? Math.round(dl.got / dl.total * 100) : 5}%"></i></div><div class="mut" id="dltxt">${dl.total ? `${mo(dl.got)} sur ${mo(dl.total)}` : 'Préparation…'}</div><button class="btn sm ghost" style="margin-top:8px" data-action="dlcancel">Annuler</button>`;
+  if (!sv) return plan ? `<div class="row"><button class="btn sec" data-action="dlstart">📥 Télécharger hors ligne</button></div><div class="mut" style="margin-top:6px">≈ 5,9 Mo · carte, tracé et étapes sur ton téléphone.</div>` : '';
+  const full = sv.items && sv.verdict !== 'partiel' && sv.verdict !== 'echec', mapGone = offStat.map === false && sv.items && sv.items.find(i => i.key === 'map' && i.ok), shellGone = offStat.miss.length;
+  return `<b>📥 Hors ligne</b> <span class="badge st-${full && !mapGone && !shellGone ? 'ok' : 'warn'}">${full && !mapGone && !shellGone ? 'disponible' : 'incomplet'}</span>
+    <div class="mut" style="margin:4px 0">Téléchargé le ${fmtDT(sv.savedAt)}${cur ? '' : ' · autre itinéraire que celui affiché'}${navigator.onLine ? '' : ' · sans réseau'}</div>
+    ${sv.items ? itemsHtml(sv.items) : '<div class="mut">Ancien enregistrement : retélécharge-le.</div>'}
+    ${mapGone ? '<div class="mut">⚠︎ Le fond de carte a été effacé par le téléphone : retélécharge.</div>' : ''}${shellGone ? '<div class="mut">⚠︎ L\'application n\'est pas complète hors ligne : reconnecte-toi puis mets à jour.</div>' : ''}
+    <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-action="${cur ? 'nstart' : 'loadsaved'}">${cur ? '🧭 Ouvrir le GPS' : 'Ouvrir cet itinéraire'}</button><button class="btn sm sec" data-action="dlstart" ${navigator.onLine ? '' : 'disabled'}>${full ? 'Mettre à jour' : 'Réessayer'}</button><button class="btn sm ghost" data-action="delsaved">Supprimer</button></div>`;
 }
 function updateOffCard() { const c = $('#offcard'); if (c) c.innerHTML = offCardHtml(); }
 async function downloadPackage() {

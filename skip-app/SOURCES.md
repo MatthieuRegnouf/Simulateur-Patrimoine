@@ -67,3 +67,9 @@ Les identifiants de remontées sont ceux de `data.js`. L'appli affiche alors « 
 
 ## Voix
 - Synthèse vocale du téléphone (Web Speech API) : choix de la voix française, débit, volume, extrait, désactivation. Une voix « locale » fonctionne hors ligne ; une voix « en ligne » exige une connexion. La naturalité dépend des voix installées sur l'appareil ; une voix de service externe (qualité studio) serait payante et en ligne : non utilisée.
+
+## Secours (bouton SOS)
+- **Numéro des secours sur les pistes, Espace Alpe d'Huez : +33 (0)4 76 80 37 38**, repris tel quel de la carte « Plan des pistes hiver 2025-2026 » publiée par la station (PDF `alpedhuez.com/wp-content/uploads/2025/11/PLAN-DES-PISTES-HIVER-2025-2026.pdf`), mention « Numéro d'urgence domaine skiable / Ski area emergency number ». Le même plan indique : « Appelez le numéro du domaine skiable puis prévenez le personnel d'exploitation. »
+- **112** : numéro d'urgence européen (toute situation, hors pistes aussi), affiché à part ; il ne remplace pas le numéro du domaine pour un accident sur piste.
+- À revérifier chaque saison (la valeur est dans `data.js` > `sos`, générée par `tools/import_alpe.py`). Pour une autre station sans numéro vérifié, l'appli le dit et ne propose que le 112.
+- Ancien dysfonctionnement : le bouton passait par `confirm()` puis `location.href = 'tel:112'`, bloqués dans une page intégrée (aperçu), et n'offrait que le 112. Désormais : fenêtre « Secours » avec liens `tel:` classiques (ouvrent le composeur du téléphone, aucun appel automatique), numéro affiché et copiable, et conseil si l'appareil ne peut pas appeler.

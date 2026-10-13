@@ -18,8 +18,8 @@ const ROOT = path.join(__dirname, '..'), PORT = 8094, URL = `http://localhost:${
     /* ---- 1. onglets ---- */
     {
       const { ctx, p } = await open();
-      assert.deepEqual(await p.$$eval('#tabs button', e => e.map(x => x.lastChild.textContent.trim())), ['Pistes', 'Itinéraire', 'Ma journée', 'Rencontres', 'Météo', 'Partage']);
-      ok('onglets : Pistes, Itinéraire, Ma journée, Rencontres, Météo (5e), Partage ; plus d\'onglet SKIP');
+      assert.deepEqual(await p.$$eval('#tabs button', e => e.map(x => x.lastChild.textContent.trim())), ['Pistes', 'Itinéraire', 'Ma journée', 'Rencontres', 'Météo']);
+      ok('onglets : Pistes, Itinéraire, Ma journée, Rencontres, Météo (5e) ; plus d\'onglet SKIP ni Partage');
       await p.click('[data-action=settings]'); const t = await p.textContent('#sheet'); assert.ok(/Invitations à noter/.test(t) && /OpenStreetMap/.test(t) && /Réinitialiser/.test(t)); ok('ce qui était utile dans l\'ancien onglet (sources, notifications, réinitialisation) est dans Réglages ⚙︎'); await p.click('[data-action=close]');
       await p.evaluate(() => { S.tab = 'about'; save(); }); await p.reload(); await p.waitForTimeout(500); assert.equal(await p.evaluate(() => S.tab), 'pistes'); ok('un ancien onglet « SKIP » enregistré ne casse rien');
       await ctx.close();
@@ -63,15 +63,15 @@ const ROOT = path.join(__dirname, '..'), PORT = 8094, URL = `http://localhost:${
     /* ---- 5. invitations de bout en bout (deux téléphones) ---- */
     {
       const A = await open({}, async pg => pg.addInitScript(() => { navigator.share = () => Promise.reject(Object.assign(new Error('blocked'), { name: 'NotAllowedError' })); }));
-      await A.p.click('[data-tab=meet]'); await A.p.fill('#pseudo', 'Marie'); await A.p.dispatchEvent('#pseudo', 'change'); await A.p.evaluate(() => { S.level = 6; S.levelSet = true; save(); });
-      await A.p.click('[data-tab=share]'); await A.p.fill('#invto', 'Paul'); await A.p.click('[data-action=invmake]');
+      await A.p.click('[data-tab=meet]'); assert.match(await A.p.textContent('#view'), /Complète ton profil/); await A.p.click('[data-action=settings]'); await A.p.fill('#pseudo', 'Marie'); await A.p.dispatchEvent('#pseudo', 'change'); await A.p.evaluate(() => { S.level = 6; S.levelSet = true; save(); }); await A.p.click('[data-action=close]');
+      await A.p.click('[data-tab=meet]'); await A.p.click('[data-action=meetview][data-v=friends]'); await A.p.fill('#invto', 'Paul'); await A.p.click('[data-action=invmake]');
       const link = await A.p.inputValue('#linkbox'); assert.ok(/#invite=/.test(link)); ok('le lien d\'invitation est réellement créé : ' + link.slice(0, 60) + '…');
       await A.p.click('[data-action=linksend]'); await A.p.waitForTimeout(300); assert.match(await A.p.textContent('#linkmsg'), /copié|copie|sélectionne/); ok('partage natif refusé : repli explicite (copie), plus de bouton muet');
       assert.match(await A.p.textContent('#view'), /Invitations envoyées \(1\)/);
       // le destinataire ouvre le lien
       const B = await open({}, null, link.replace(/^https?:\/\/[^/]+/, `http://localhost:${PORT}`));
       assert.match(await B.p.textContent('#sheet'), /Invitation reçue/); assert.match(await B.p.textContent('#sheet'), /Marie/); ok('ouverture du lien : le profil de l\'invitant est identifié (pseudo, #identifiant, niveau)');
-      await B.p.reload(); await B.p.waitForTimeout(500); await B.p.click('[data-tab=share]'); assert.match(await B.p.textContent('#view'), /invitation\(s\) reçue\(s\) en attente/); ok('l\'invitation est conservée si le destinataire quitte ou recharge avant de répondre');
+      await B.p.reload(); await B.p.waitForTimeout(500); await B.p.click('[data-tab=meet]'); await B.p.click('[data-action=meetview][data-v=friends]'); assert.match(await B.p.textContent('#view'), /invitation\(s\) reçue\(s\) en attente/); ok('l\'invitation est conservée si le destinataire quitte ou recharge avant de répondre');
       await B.p.click('[data-action=invopen]'); await B.p.fill('#invname', 'Paul'); await B.p.click('[data-action=invaccept]');
       assert.match(await B.p.textContent('#sheet'), /Marie est dans tes amis/); const reply = await B.p.inputValue('#linkbox'); assert.ok(/#accept=/.test(reply)); assert.equal(await B.p.evaluate(() => Object.values(S.friends).map(f => f.n).join()), 'Marie'); ok('acceptation : l\'invitant rejoint les amis, un lien de réponse est généré');
       // l'invitant ouvre la réponse
@@ -87,12 +87,31 @@ const ROOT = path.join(__dirname, '..'), PORT = 8094, URL = `http://localhost:${
       await p.evaluate(() => { S.profile.pseudo = 'Moi'; S.level = 5; S.levelSet = true; S.intent = { k: 'ski', when: 'am', zone: '', day: todayKey(), t: Date.now() };
         const mk = (u, n, l, i) => cleanProfile({ u, n, l, d: 'ski', w: ['Balade'], st: 'alpe', i, t: Date.now() });
         addFriend(mk('abc123', 'Marie', 5.5, { k: 'ski', w: 'am', z: '', day: todayKey() }), 'test'); addFriend(mk('xyz789', 'Marie', 9, { k: 'none', w: 'now', day: todayKey() }), 'test'); addFriend(mk('qrs456', 'Léo', 5, { k: 'break', w: 'pm', day: todayKey() }), 'test'); save(); });
-      await p.click('[data-tab=share]'); await p.fill('#psearch', 'marie'); const res = await p.textContent('#pres'); assert.ok(/#ABC1/.test(res) && /#XYZ7/.test(res) && /même nom/.test(res)); ok('deux « Marie » : identifiant #, niveau et statut affichés pour choisir la bonne avant d\'inviter');
+      await p.click('[data-tab=meet]'); await p.click('[data-action=meetview][data-v=friends]'); await p.fill('#psearch', 'marie'); const res = await p.textContent('#pres'); assert.ok(/#ABC1/.test(res) && /#XYZ7/.test(res) && /même nom/.test(res)); ok('deux « Marie » : identifiant #, niveau et statut affichés pour choisir la bonne avant d\'inviter');
       await p.fill('#psearch', 'inconnu'); assert.match(await p.textContent('#pres'), /Il n'existe pas encore d'annuaire/); ok('recherche sans résultat : explication honnête (pas d\'annuaire sans serveur)');
-      await p.click('[data-tab=meet]'); const cards = await p.$$eval('#view > .card', e => e.map(x => x.textContent)); const marie1 = cards.find(c => /#ABC1/.test(c)), marie2 = cards.find(c => /#XYZ7/.test(c));
+      await p.click('[data-action=meetview][data-v=find]'); const cards = await p.$$eval('#view > .card', e => e.map(x => x.textContent)); const marie1 = cards.find(c => /#ABC1/.test(c)), marie2 = cards.find(c => /#XYZ7/.test(c));
       assert.match(marie1, /Compatible/); assert.match(marie1, /cherche aussi/); assert.match(marie2, /Peu compatible/); assert.match(marie2, /Pas d'intention|autre envie|niveau éloigné/); ok('Rencontres : l\'intention et la compatibilité (niveau, envie, moment) se lisent d\'un coup d\'œil');
       assert.match(await p.textContent('#view'), /Cherche des personnes pour skier/); assert.equal(await p.evaluate(() => { S.intent.day = '2000-01-01'; return !!intentNow(S.intent); }), false); ok('l\'intention du moment expire le jour même ; elle est distincte du profil permanent');
       await ctx.close();
+    }
+    /* ---- 6b. Partage intégré à Rencontres ; profil dans Réglages ; hors ligne ; SOS ---- */
+    {
+      const { ctx, p } = await open({ serviceWorkers: 'block' });
+      await p.click('[data-tab=meet]'); assert.ok(!(await p.$('[data-tab=share]'))); assert.equal(await p.$$eval('#view > .seg button', e => e.map(x => x.textContent.replace(/\s*\(\d+\)/, '').trim()).join('|')), 'Skier / sortir|Amis et invitations');
+      assert.ok(!(await p.textContent('#view')).includes('Mon profil</b>') && !(await p.$('#pseudo'))); ok('Rencontres : deux vues (skier/sortir · amis et invitations) ; plus d\'onglet Partage ni de formulaire de profil');
+      await p.click('[data-action=meetview][data-v=friends]'); assert.ok(await p.$('[data-action=invmake]') && await p.$('#psearch') && /Amis \(0\)/.test(await p.textContent('#view'))); ok('Amis et invitations : lien (créer, copier, envoyer), recherche, invitations reçues/envoyées, amis');
+      await p.click('[data-action=settings]'); assert.match(await p.textContent('#sheet'), /Mon profil/); await p.fill('#pseudo', 'Zoé'); await p.dispatchEvent('#pseudo', 'change'); await p.click('[data-action=disc][data-k=snowboard]'); await p.click('[data-action=want][data-w="Balade"]'); await p.click('[data-action=slot][data-k=pm]');
+      assert.deepEqual(await p.evaluate(() => [S.profile.pseudo, S.profile.discipline, S.profile.wants, S.profile.slots]), ['Zoé', 'snowboard', ['Balade'], ['pm']]); assert.ok(await p.$eval('#sheet [data-action=disc][data-k=snowboard]', e => e.classList.contains('on'))); ok('Réglages › Mon profil : pseudo, niveau, discipline, envies, disponibilités modifiables (la feuille se met à jour)');
+      await p.click('[data-action=close]'); await p.click('[data-tab=route]'); await p.evaluate(() => { S.levelSet = true; S.rf.mode = 'profile'; save(); render(); }); assert.match(await p.textContent('.inset'), /Snowboard/); ok('le profil personnel sert toujours au calcul d\'itinéraire (snowboard pris en compte)');
+      await p.evaluate(() => { S.rf.tmp = { walk: true }; save(); render(); }); await p.click('[data-action=plan]:not([data-next])'); await p.waitForSelector('#planres'); await p.waitForTimeout(4600);
+      assert.match(await p.textContent('#offcard'), /Disponible en ligne uniquement\./); assert.ok(!(await p.$('[data-action=dlstart]'))); assert.ok(!/octets|cache|service worker|OpenStreetMap|PMTiles/i.test(await p.textContent('#offcard'))); ok('hors ligne non disponible (aperçu / sans service worker) : « Disponible en ligne uniquement. », aucun bouton, aucun détail technique');
+      await ctx.close();
+      const m = await open({ isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36' });
+      await m.p.click('[data-action=sos]'); const hrefs = await m.p.$$eval('#sheet a[href^="tel:"]', e => e.map(x => x.getAttribute('href'))); assert.deepEqual(hrefs, ['tel:+33476803738', 'tel:112']);
+      const sh = await m.p.textContent('#sheet'); assert.ok(/04 76 80 37 38/.test(sh) && /Secours sur les pistes/.test(sh) && /112/.test(sh) && /à revérifier chaque saison/.test(sh)); assert.ok(!/ne semble pas pouvoir passer d'appel/.test(sh)); ok('SOS : service nommé, numéro affiché (04 76 80 37 38), liens tel: vers les secours du domaine et le 112, sans appel déclenché');
+      await m.p.click('[data-action=soscopy]'); await m.p.waitForTimeout(400); assert.ok(await m.p.textContent('#toast')); await m.ctx.close();
+      const dsk = await open(); await dsk.p.click('[data-action=sos]'); assert.match(await dsk.p.textContent('#sheet'), /ne semble pas pouvoir passer d'appel/); assert.match(await dsk.p.textContent('#sheet'), /04 76 80 37 38/); ok('appareil sans téléphonie : numéro lisible pour le composer ailleurs + conseil alternatif');
+      await dsk.ctx.close();
     }
     /* ---- 7. sortie enregistrée : démarrage, descente par le tracé GPS, pause, arrêt, bilan, rattachement à Ma journée ---- */
     {

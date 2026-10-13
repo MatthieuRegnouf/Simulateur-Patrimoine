@@ -8,6 +8,14 @@ const DATA = { stations: { alpe: {
  "id": "alpe",
  "name": "Espace Alpe d'Huez",
  "updated": "11/10/2026 20:21",
+ "sos": {
+  "name": "Secours sur les pistes · Espace Alpe d'Huez",
+  "tel": "+33476803738",
+  "display": "04 76 80 37 38",
+  "general": "112",
+  "source": "Plan des pistes officiel hiver 2025-2026, Espace Alpe d'Huez (alpedhuez.com)",
+  "season": "2025-2026"
+ },
  "site": {
   "km": 250,
   "pistes": 111,

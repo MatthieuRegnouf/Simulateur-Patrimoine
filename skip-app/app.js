@@ -98,7 +98,7 @@ function openSheet(html) {
   s.innerHTML = `<div class="in"><button class="x" data-action="close" aria-label="Fermer">✕</button>${html}</div>`; s.hidden = false;
   s.querySelector('.in').scrollTop = top;
 }
-function closeSheet() { $('#sheet').hidden = true; sheetId = null; sheetKind = ''; }
+function closeSheet() { const was = sheetKind; $('#sheet').hidden = true; sheetId = null; sheetKind = ''; if (was === 'settings') render(); }
 
 /* ---------- Pistes et remontées ---------- */
 const norm = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ');
@@ -551,11 +551,30 @@ function importFriend(raw) {
   if (Object.keys(S.friends).length >= 50 && !S.friends[f.n.toLowerCase()]) return 'Limite de 50 contacts atteinte.';
   S.friends[f.n.toLowerCase()] = f; save(); return null;
 }
+/* ---------- Secours ----------
+   Numéro propre à la station, repris d'une source officielle (voir data.js > sos). Aucun appel n'est lancé automatiquement : le bouton est un lien « tel: » que l'utilisateur déclenche lui-même.
+   Pourquoi l'ancien bouton ne marchait pas : il passait par confirm() puis location.href, deux actions bloquées dans une page intégrée (aperçu) ; et il n'appelait que le 112, sans le numéro des secours du domaine. */
+function sosSheet() {
+  const st = station(), s = st.sos, la = (typeof Geo !== 'undefined' && Geo.last && Geo.last()), recent = la && Date.now() - la.t < 120000;
+  const touch = navigator.maxTouchPoints > 0 && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+  openSheet(`<h2 style="margin-top:0">🆘 Secours</h2>
+    ${s ? `<div class="card" style="border-color:#c62828"><b>${esc(s.name)}</b><div class="mut" style="margin:2px 0 8px">Pisteurs-secouristes du domaine skiable</div>
+        <a class="btn gps" style="display:block;text-align:center;text-decoration:none;background:#c62828" href="tel:${esc(s.tel)}">📞 Appeler le ${esc(s.display)}</a>
+        <div class="row" style="margin-top:8px;gap:8px"><b class="sp" style="font-size:20px">${esc(s.display)}</b><button class="btn sm ghost" data-action="soscopy" data-n="${esc(s.display)}">Copier</button></div></div>`
+      : `<div class="warn">Le numéro des secours sur les pistes de ${esc(st.name)} n'est pas vérifié dans l'appli : utilise le 112 ou préviens le personnel d'une remontée.</div>`}
+    <div class="card"><b>Urgence générale (toute situation, hors pistes aussi)</b>
+      <a class="btn sec" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="tel:112">📞 Appeler le 112</a></div>
+    ${touch ? '' : '<div class="warn">Cet appareil ne semble pas pouvoir passer d\'appel : compose le numéro depuis un téléphone, ou préviens le personnel d\'une remontée ou un pisteur.</div>'}
+    ${recent ? `<div class="mut">Ta dernière position : ${la.lat.toFixed(5)}, ${la.lng.toFixed(5)} (± ${Math.round(la.acc || 0)} m, il y a ${Math.round((Date.now() - la.t) / 1000)} s)</div>` : ''}
+    <ul class="mut" style="padding-left:18px;margin:8px 0 0"><li>Reste près du blessé et protège-le du froid.</li><li>Donne le numéro du poteau de la piste ou ta position.</li><li>Préviens le personnel de la remontée la plus proche.</li></ul>
+    ${s ? `<div class="mut" style="margin-top:8px">Numéro du plan des pistes officiel ${esc(s.season)} : à revérifier chaque saison.</div>` : ''}`);
+}
 /* ---------- Réglages et sources (ouvert par ⚙︎) ---------- */
 let sheetKind = '';
 function settingsSheet() {
   const st = station(); sheetKind = 'settings';
-  openSheet(`<h2>Réglages et sources</h2>
+  openSheet(`<h2>Réglages</h2>
+    ${profileSettingsHtml()}
     ${renderNotifCard()}
     <div class="card"><b>🔊 Voix du guidage</b><div class="mut" style="margin:4px 0 8px">Voix, débit, volume, écoute d'un extrait.</div><button class="btn sm sec" data-action="nvoice">Régler la voix</button></div>
     <div class="card"><b>Données</b><div class="mut" style="margin-top:6px">${st.pistes.length} pistes et ${st.lifts.length} remontées de l'Espace Alpe d'Huez, issues du flux officiel de la station (mise à jour du ${esc(st.updated)}). Aucune note, aucun vote, aucun coup de cœur n'est inventé : tout démarre à zéro.</div>
@@ -803,8 +822,9 @@ function advanceGuide() {
 /* ---------- Rendu & événements ---------- */
 function render() {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
-  if (!{ pistes: 1, route: 1, weather: 1, day: 1, meet: 1, share: 1 }[S.tab]) S.tab = 'pistes';
-  $('#view').innerHTML = { pistes: renderPistes, route: renderRoute, weather: renderWeather, day: renderDay, meet: renderMeet, share: renderShare }[S.tab]();
+  if (S.tab === 'share') { S.tab = 'meet'; S.meetView = 'friends'; }   // l'ancien onglet Partage vit désormais dans Rencontres
+  if (!{ pistes: 1, route: 1, weather: 1, day: 1, meet: 1 }[S.tab]) S.tab = 'pistes';
+  $('#view').innerHTML = { pistes: renderPistes, route: renderRoute, weather: renderWeather, day: renderDay, meet: renderMeet }[S.tab]();
   afterRender();
 }
 const updateList = () => { const l = $('#plist'); if (l) l.innerHTML = listHtml(); };
@@ -815,6 +835,7 @@ document.addEventListener('click', e => {
   if (e.target.id === 'sheet') return closeSheet();
   const el = e.target.closest('[data-action]'); if (!el) return;
   const d = el.dataset, f = S.filt;
+  if (sheetKind === 'settings' && ['disc', 'want', 'slot', 'netedit', 'netsave', 'netdel'].includes(d.action)) queueMicrotask(settingsSheet);   // la feuille Réglages se met à jour après l'action
   switch (d.action) {
     case 'wxalt': wxAlt = d.k; render(); break;
     case 'wxreload': wxData = { base: null, top: null }; wxLoad(true); liveLoad(true).then(() => S.tab === 'weather' && render()); render(); break;
@@ -830,7 +851,8 @@ document.addEventListener('click', e => {
     case 'qpick': { const log = S.log[todayKey()]; if (rateCtx.k != null) { const e = logToday()[rateCtx.k]; if (e) { e.pick = d.id; save(); } } rateCtx.id = d.id; rateCtx.correcting = false; rateSheet(); break; }
     case 'wreport': S.waits.push({ id: d.id, m: +d.m, t: Date.now() }); S.waits = S.waits.slice(-300); save(); toast('Merci ! Attente signalée.'); liftSheet(d.id); break;
     case 'settings': settingsSheet(); break;
-    case 'sos': if (confirm('Appeler le 112 (urgences) ?')) location.href = 'tel:112'; break;
+    case 'sos': sosSheet(); break;
+    case 'soscopy': copyText(d.n).then(ok => toast(ok ? 'Numéro copié.' : 'Copie impossible : note le numéro et compose-le.', 4000)); break;
     case 'close': closeSheet(); break;
     case 'open': sheetPeriod = 0; showChars = false; pisteSheet(d.id); break;
     case 'openlift': liftSheet(d.id); break;
