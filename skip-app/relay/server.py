@@ -46,7 +46,12 @@ def handler(relay, origin):
             self.end_headers(); self.wfile.write(body)
 
         def do_OPTIONS(self):
-            self.send_response(204); self.send_header('Access-Control-Allow-Origin', origin); self.send_header('Access-Control-Allow-Methods', 'GET'); self.end_headers()
+            self.send_response(204); self.send_header('Access-Control-Allow-Origin', origin); self.send_header('Access-Control-Allow-Methods', 'GET, POST'); self.send_header('Access-Control-Allow-Headers', 'Content-Type'); self.end_headers()
+
+        def do_POST(self):
+            if self.path.split('?')[0] == '/push/subscribe':   # contrat préparé, non implémenté : il faut des clés VAPID et un service d'envoi (voir README)
+                return self._send(501, json.dumps({'error': 'Web Push non configuré', 'see': 'relay/README.md#notifications-poussées'}).encode())
+            self._send(404, json.dumps({'error': 'introuvable'}).encode())
 
         def do_GET(self):
             path = self.path.split('?')[0]

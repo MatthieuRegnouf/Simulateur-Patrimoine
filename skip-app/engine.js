@@ -206,7 +206,9 @@ const arcAllowed = (a, o) => {
         }
         for (const a of net.nodes[s.n].out) {
           if (!arcAllowed(a, o) || (s.arc && s.arc.e.id === a.e.id)) continue;
-          const c = arcMin(a, speed), t = s.t + c;
+          const c = arcMin(a, speed);
+          // attente : une seule fois par embarquement (pas à chaque tronçon d'une même remontée) et seulement si une valeur est connue ou estimée
+          const w = a.mode === 'lift' && o.waitOf && !(s.arc && s.arc.mode === 'lift' && s.arc.e.n === a.e.n) ? (o.waitOf(a.e)?.min || 0) : 0, t = s.t + c + w;
           if (a.mode === 'walk' && c > 10) continue;   // pas de longue marche en chaussures de ski
           if (t + toEnd[a.to] > cap) continue;
           const reuse = chain(s, x => x.e.id === a.e.id);
@@ -217,7 +219,8 @@ const arcAllowed = (a, o) => {
             if (o.pref) sc += o.pref(a.e) * c;                                    // préférences (coups de cœur, notes personnelles)
             if (a.e.k === 'piste' && a.e.n) { const same = chain(s, x => x.e.n === a.e.n); sc += !same ? 0.5 : (s.arc.e.n === a.e.n ? 0 : -6); }
           } else if (a.mode === 'walk') sc -= c * 3.5;
-          else sc -= 0.2 + reuse * 3;
+          else sc -= 0.2 + reuse * 3 + w * 0.8;
+          if (o.pref && a.mode === 'lift') sc += o.pref(a.e);
           if (jitter) sc += rand() * jitter * c;
           buckets[Math.min(buckets.length - 1, Math.max(b + 1, Math.ceil(t * 2)))].push({ n: a.to, t, sc, prev: s, arc: a, ps: s.ps + (a.e.k === 'piste' ? 1 : 0) });
         }
@@ -236,12 +239,12 @@ const arcAllowed = (a, o) => {
       const name = kind === 'piste' || kind === 'lift' ? a.e.n : '';
       const last = steps[steps.length - 1];
       let pts = net.geom(a.e); if (a.rev) pts = pts.slice().reverse();
-      const min = arcMin(a, speed);
+      const min = arcMin(a, speed), wt = kind === 'lift' && o.waitOf ? o.waitOf(a.e) : null;
       const same = last && last.kind === kind && (kind === 'walk' || kind === 'link' || last.name === name || (kind === 'piste' && !name));
       if (same) {
-        last.minF += min; last.m += a.len; last.to = a.to; last.coords = last.coords.concat(pts.slice(1)); last.edges.push(a.e.id);
-        if (kind === 'lift') last.y = last.y || a.e.y;
-      } else steps.push({ kind, name, color: a.e.c || null, o: a.e.o || null, y: a.e.y || null, from: a.from, to: a.to, minF: min, m: a.len, coords: pts.slice(), edges: [a.e.id] });
+        if (kind === 'lift') { last.via.push(last.to); last.rideF += min; last.minF += min; last.y = last.y || a.e.y; } else last.minF += min;
+        last.m += a.len; last.to = a.to; last.coords = last.coords.concat(pts.slice(1)); last.edges.push(a.e.id);
+      } else steps.push({ kind, name, color: a.e.c || null, o: a.e.o || null, y: a.e.y || null, from: a.from, to: a.to, minF: min + (wt?.min || 0), rideF: kind === 'lift' ? min : 0, wait: wt, via: [], m: a.len, coords: pts.slice(), edges: [a.e.id] });
     });
     // un tronçon de piste de moins de ~1 min 30 est absorbé par la piste précédente (ou suivante) : étapes plus lisibles
     for (let i = 0; i < steps.length; i++) {
@@ -255,12 +258,16 @@ const arcAllowed = (a, o) => {
     }
     for (let i = steps.length - 1; i >= 0; i--) if (steps[i].kind === 'walk' && steps[i].m < 25 && steps.length > 1) steps.splice(i, 1);   // raccord de 0 m : inutile à l'écran
     steps.forEach(s => {
-      s.min = Math.max(1, Math.round(s.minF)); s.altFrom = Math.round(net.nodes[s.from].alt); s.altTo = Math.round(net.nodes[s.to].alt);
+      s.min = Math.max(1, Math.round(s.minF)); s.rideMin = Math.round(s.rideF || 0); s.waitMin = s.wait ? Math.round(s.wait.min) : null;
+      s.viaNames = (s.via || []).map(n => nodeName(net.nodes[n])); s.altFrom = Math.round(net.nodes[s.from].alt); s.altTo = Math.round(net.nodes[s.to].alt);
       s.fromName = nodeName(net.nodes[s.from]); s.toName = nodeName(net.nodes[s.to]);
     });
-    const totalF = steps.reduce((a, s) => a + s.minF, 0), pis = steps.filter(s => s.kind === 'piste');
+    const totalF = steps.reduce((a, s) => a + s.minF, 0), pis = steps.filter(s => s.kind === 'piste'), lf = steps.filter(s => s.kind === 'lift');
+    const sum = (l, f) => Math.round(l.reduce((a, s) => a + f(s), 0));
+    const times = { descent: sum(pis, s => s.minF), link: sum(steps.filter(s => s.kind === 'walk' || s.kind === 'link'), s => s.minF), ride: sum(lf, s => s.rideF), wait: sum(lf, s => s.wait?.min || 0),
+      lifts: lf.length, waitKnown: lf.filter(s => s.wait).length };
     return {
-      steps, total: Math.round(totalF), opt: { start: o.start, end: o.end ?? o.start, budget: o.budget, speed, colors: o.colors, walk: o.walk !== false, variant: o.variant || 0, mode: o.levelOf ? 'felt' : 'color', lo: o.lo, hi: o.hi },
+      steps, total: Math.round(totalF), times, opt: { start: o.start, end: o.end ?? o.start, wait: !!o.waitOf, budget: o.budget, speed, colors: o.colors, walk: o.walk !== false, variant: o.variant || 0, mode: o.levelOf ? 'felt' : 'color', lo: o.lo, hi: o.hi },
       km: Math.round(pis.reduce((a, s) => a + s.m, 0) / 100) / 10, descents: pis.length,
       down: pis.reduce((a, s) => a + Math.max(0, s.altFrom - s.altTo), 0), up: steps.filter(s => s.kind === 'lift').reduce((a, s) => a + Math.max(0, s.altTo - s.altFrom), 0),
       walkMin: Math.round(steps.filter(s => s.kind === 'walk').reduce((a, s) => a + s.minF, 0)),

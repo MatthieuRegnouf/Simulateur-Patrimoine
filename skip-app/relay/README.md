@@ -33,3 +33,12 @@ Dans `config.js` : `window.SKIP_CONFIG = { relay: 'http://127.0.0.1:8788', liveU
 - Le flux est public mais appartient à la station : prévenir l'exploitant (SATA / Espace Alpe d'Huez) avant un usage régulier ou commercial, et respecter ses conditions d'utilisation.
 - Fréquence de mise à jour du flux : environ toutes les 15 à 30 minutes d'après les dates observées (météo 11:30:15 le 13/10/2026) ; non garantie.
 - Notifications poussées (appli fermée) : non fournies, elles demandent un service Web Push avec clés VAPID.
+
+## Notifications poussées (appli fermée) : non implémentées
+L'appli affiche déjà des invitations quand elle est ouverte (bandeau) et des notifications système via le service worker quand elle tourne en arrière-plan. Pour prévenir **appli fermée** (par exemple « Fin de journée : tes pistes à noter »), il faut :
+1. une paire de clés VAPID (`npx web-push generate-vapid-keys`), la clé publique dans `config.js` (`vapidKey`) ;
+2. un service d'envoi (Node `web-push` ou Python `pywebpush`) et un stockage des abonnements ;
+3. l'implémentation de `POST /push/subscribe` (contrat : `{ "subscription": PushSubscription, "prefs": { "evening": "17:30" } }`) — aujourd'hui le relais répond **501** ;
+4. une tâche planifiée qui envoie `{ title, body, data: { evening: true } }` ; le service worker (`sw.js`) ouvre alors directement l'écran des pistes à noter.
+Le relais ne connaît pas les pistes skiées (elles restent sur le téléphone) : le message du soir est générique, la liste précise s'affiche à l'ouverture.
+La détection des pistes en arrière-plan (téléphone verrouillé) n'est pas possible dans une appli web : elle demande une appli native (par exemple Capacitor avec la permission de localisation en arrière-plan).

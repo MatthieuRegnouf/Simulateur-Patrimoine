@@ -13,7 +13,7 @@ const defaults = () => ({
   profile: { pseudo: '', discipline: 'ski', wants: [], status: 'slopes', socials: {} },
   votes: {}, vlog: [], hearts: [], log: {}, route: null, chat: {}, screen: {}, friends: {},
   filt: { colors: [], q: '', sector: '', sort: 'color', fit: false, open: false, view: 'pistes', mine: false },
-  notif: { enabled: false, sys: false, lift: true, evening: true, eveningTime: '17:30', max: 3 }, pro: { d: '', ids: [], n: 0, evening: false },
+  waits: [], waitMargin: 0, notif: { enabled: false, sys: false, lift: true, evening: true, eveningTime: '17:30', max: 3 }, pro: { d: '', ids: [], n: 0, evening: false },
   rf: { start: '', end: '', budget: 120, speed: 'medium', mode: 'felt', lo: 2, hi: 3, colors: ['green', 'blue', 'red'], walk: true, variant: 0 }
 });
 let S = (() => { try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return defaults(); } })();
@@ -219,8 +219,114 @@ function liftSheet(id) {
   openSheet(`<div class="row"><span class="ico">${LIFT_ICON[l.type] || '🚡'}</span><h2 style="margin:0">${esc(l.name)}</h2></div><div class="mut">${esc(l.type)}</div>
     ${openingLine('lift', id)}<div class="data" style="margin-top:12px">${cell('Durée du trajet', l.min ? Math.round(l.min) + ' min' : '')}${cell('Altitudes', alts(l))}${cell('Dénivelé', l.denivele ? l.denivele + ' m' : l.altFrom && l.altTo ? l.altTo - l.altFrom + ' m' : '')}
       ${cell('Horaires', l.hours)}${cell('Débit maximum', l.debit ? l.debit + ' pers/h' : '')}${cell('Secteur', l.sectors.map(secName).join(' ; '))}</div>
-    <div class="mut">Source : flux officiel de l'Espace Alpe d'Huez. Les informations manquantes ne sont pas fournies.</div>
+    <h3>Temps d'attente</h3>
+    <div>${esc(waitText(waitFor(id)))}</div>
+    <div class="mut" style="margin-top:4px">Moyenne habituelle (vacances scolaires, hors vacances, heure) : ${waitHist?.lifts[id] ? 'voir ci-dessus (' + esc(waitHist.source || '') + ')' : 'information indisponible, aucune statistique publique trouvée pour cette remontée.'}</div>
+    ${waitReportHtml(id)}
+    <div class="mut" style="margin-top:10px">Source : flux officiel de l'Espace Alpe d'Huez. Les informations manquantes ne sont pas fournies.</div>
 `);
+}
+
+/* ---------- Temps d'attente aux remontées ---------- */
+/* Quatre natures de données, toujours distinguées à l'écran :
+   mesure de l'exploitant (flux officiel, si renseignée) · signalement de skieurs (< 30 min) · moyenne historique · estimation générique choisie par l'utilisateur.
+   Sinon : « information indisponible ». Aucune valeur n'est inventée. */
+const WAIT_BUCKETS = [[1, 'moins de 2 min'], [3.5, '2 à 5 min'], [7.5, '5 à 10 min'], [15, '10 à 20 min'], [25, 'plus de 20 min']];
+const median = a => { const x = [...a].sort((p, q) => p - q), m = x.length >> 1; return x.length % 2 ? x[m] : (x[m - 1] + x[m]) / 2; };
+const ageMin = t => Math.max(0, Math.round((Date.now() - t) / 60000));
+let waitHist = null;   // waits-history.json : moyennes historiques fournies par l'exploitant (aucune statistique publique trouvée à ce jour)
+async function loadWaitHistory() { try { const j = await (await fetch('waits-history.json')).json(); if (j && j.lifts) waitHist = j; } catch { /* fichier absent : normal */ } }
+function waitReports(id) {
+  const out = S.waits.filter(w => w.id === id).map(w => ({ m: w.m, t: w.t, d: todayKey() }));
+  Object.values(S.friends).forEach(f => (f.w || []).forEach(w => { if (w[0] === id) out.push({ m: w[1], t: w[2] }); }));
+  return out;
+}
+function waitFor(id) {
+  const li = liveItem('lift', id);
+  if (li && li.waitMin != null) return { min: li.waitMin, src: 'live', fresh: !live.snapshot && !live.stale && liveAge() <= 30, at: live.data.source.feedUpdated };
+  const all = waitReports(id), rec = all.filter(w => Date.now() - w.t < 30 * 60000);
+  if (rec.length) return { min: Math.round(median(rec.map(w => w.m))), src: 'report', n: rec.length, at: Math.max(...rec.map(w => w.t)) };
+  if (waitHist?.lifts[id]) {   // moyenne historique fournie : période (vacances / hors vacances) et créneau horaire
+    const day = new Date().toISOString().slice(0, 10), hol = (waitHist.holidays || []).some(h => day >= h.from && day <= h.to), tab = waitHist.lifts[id][hol ? 'holiday' : 'offpeak'] || {};
+    const hr = new Date().getHours(), slot = Object.keys(tab).find(k => { const [a, b] = k.split('-').map(Number); return hr >= a && hr < b; });
+    if (slot) return { min: tab[slot], src: 'history', period: hol ? 'vacances scolaires' : 'hors vacances', slot, source: waitHist.source };
+  }
+  const hr = new Date().getHours(), same = all.filter(w => Math.abs(new Date(w.t).getHours() - hr) <= 1 && Date.now() - w.t >= 30 * 60000);
+  if (same.length >= 3 && new Set(same.map(w => new Date(w.t).toDateString())).size >= 2) return { min: Math.round(median(same.map(w => w.m))), src: 'history', local: true, n: same.length };
+  if (S.waitMargin > 0) return { min: S.waitMargin, src: 'estimate' };
+  return null;
+}
+const waitText = w => !w ? 'Attente : information indisponible (non incluse)'
+  : w.src === 'live' ? `Attente : ${w.min} min · ${w.fresh ? 'mesure en temps réel' : 'dernière valeur'} de l'exploitant (maj ${hm(w.at)})`
+  : w.src === 'report' ? `Attente : ≈ ${w.min} min · signalée par ${w.n} skieur${w.n > 1 ? 's' : ''}, il y a ${ageMin(w.at)} min (signalement, pas une mesure)`
+  : w.src === 'history' ? (w.local ? `Attente habituelle : ≈ ${w.min} min · moyenne de ${w.n} signalements à cette heure (collecte locale)` : `Attente habituelle : ≈ ${w.min} min · moyenne historique (${w.period}, ${w.slot} h) · ${esc(w.source || '')}`)
+  : `Attente : ≈ ${w.min} min · estimation générique réglée par toi, pas une mesure`;
+const waitOf = e => e.o && e.k === 'lift' ? waitFor(e.o) : null;
+function waitReportHtml(id) {
+  return `<div class="mut" style="margin-top:6px">Signaler l'attente actuelle (aide les autres skieurs) :</div><div class="chips" style="margin-top:4px">${WAIT_BUCKETS.map(([m, t]) => `<button class="chip" data-action="wreport" data-id="${id}" data-m="${m}">${t}</button>`).join('')}</div>`;
+}
+const wxToday = () => { const d = wxData.top; if (!d) return null; const days = wxDaily(d.ts), t = days.find(x => x.date === parisDate(Date.now())) || days[0]; return t ? { wind: t.wind } : null; };
+
+/* ---------- Préférences et explications d'un itinéraire ---------- */
+const WIND_HIGH = 50;   // km/h en altitude : seuil à partir duquel on évite les zones hautes
+function routeCtx(extra) { const w = wxToday(); return { wind: w ? w.wind : null, windHigh: !!w && w.wind >= WIND_HIGH, heart: 0.6, ...extra }; }
+function prefOf(ctx, hiNote) {
+  return e => {
+    let v = 0; const p = e.o && pisteOf(e.o);
+    if (e.k === 'piste' && p) {
+      if (S.hearts.includes(p.id)) v += ctx.heart;
+      const mv = myVote(p.id); if (mv && hiNote && mv.s > hiNote + 1) v -= 1.5;
+      if ((agg(p.id, 3).tags['Dure / verglacée'] || 0) >= 2) v -= 1.5;
+    }
+    if (ctx.windHigh && Math.max(NET.nodes[e.a].alt, NET.nodes[e.b].alt) >= 2700) v -= e.k === 'lift' ? 3 : 1.5;
+    return v;
+  };
+}
+const fmtApprox = m => '≈ ' + fmtMin(Math.round(m / 5) * 5);
+function explain(pl, ctx) {
+  const why = [], lim = [], o = pl.opt, t = pl.times, ps = pl.steps.filter(x => x.kind === 'piste' && x.o && pisteOf(x.o));
+  if (o.mode === 'felt') why.push(`Elle correspond à la difficulté que tu as choisie (niveau ${o.loL} à ${o.hiL} sur 5, ${Engine.LEVELS[o.loL - 1].label.toLowerCase()} à ${Engine.LEVELS[o.hiL - 1].label.toLowerCase()}), d'après les votes des skieurs complétés par la couleur officielle et la pente. Ton niveau déclaré : ${Engine.levelOf(S.level).n}/5.`);
+  else why.push(`Elle respecte les couleurs choisies (jamais plus difficile que ${colorName(['black', 'red', 'blue', 'green'].find(c => o.colors.includes(c)) || 'green').toLowerCase()}).`);
+  const hearts = [...new Set(ps.filter(x => S.hearts.includes(x.o)).map(x => pisteOf(x.o).name))];
+  if (hearts.length) why.push(`Elle passe par ${hearts.length} de tes coups de cœur : ${hearts.slice(0, 4).join(', ')}.`);
+  if (t.waitKnown) { const srcs = [...new Set(pl.steps.filter(x => x.wait).map(x => ({ live: 'exploitant', report: 'signalements', history: 'moyenne historique', estimate: 'estimation générique' })[x.wait.src]))]; why.push(`Les attentes connues sont prises en compte pour ${t.waitKnown} remontée${t.waitKnown > 1 ? 's' : ''} sur ${t.lifts} (${srcs.join(', ')}) : elle évite les remontées les plus lentes.`); }
+  else lim.push(`Attentes : information indisponible pour ces ${t.lifts} remontées, non incluses dans la durée (voir « Temps d'attente »).`);
+  if (seasonOpen()) { why.push(`Seules les remontées et pistes ouvertes sont utilisées (flux officiel, ${esc(liveTag())}).`); if (liveAge() > 60) lim.push(`Les données d'ouverture ont ${Math.round(liveAge() / 60)} h : à vérifier avant de partir.`); }
+  else lim.push(live ? 'Ouverture : domaine fermé ou hors saison, l\'état d\'ouverture n\'est pas appliqué.' : 'Ouverture : information indisponible.');
+  if (ctx.wind != null) why.push(ctx.windHigh ? `Vent fort annoncé en altitude (${ctx.wind} km/h) : les zones au-dessus de 2 700 m sont évitées.` : `Météo consultée (vent maximal ${ctx.wind} km/h en altitude) : pas de contrainte particulière.`);
+  else lim.push('Météo : prévisions non chargées, non prises en compte.');
+  const ice = ps.filter(x => (agg(x.o, 3).tags['Dure / verglacée'] || 0) >= 2); if (ice.length) lim.push(`Neige dure ou verglacée signalée sur ${ice.map(x => pisteOf(x.o).name).slice(0, 3).join(', ')} ces 3 derniers jours.`);
+  why.push(`Durée : ${fmtApprox(pl.total)} pour ${fmtMin(o.budget)} demandées.`);
+  return { why, lim };
+}
+function explainHtml(pl) {
+  const x = pl.reasons || explain(pl, routeCtx());
+  return `<details open style="margin-top:10px"><summary><b>Pourquoi cet itinéraire ?</b></summary><ul style="margin:6px 0 0;padding-left:18px">${x.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+    ${x.lim.length ? `<div class="warn" style="margin-top:8px"><b>Limites</b><ul style="margin:4px 0 0;padding-left:18px">${x.lim.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}</details>`;
+}
+
+/* ---------- Suggestions personnalisées ---------- */
+let sugg = null, suggBusy = false;
+function computeSuggestions() {
+  const f = S.rf, L = Engine.levelOf(S.level).n, si = startIndex(f.start), ei = f.end ? startIndex(f.end) : si;
+  const defs = [{ title: 'À ton niveau', lo: Math.max(1, L - 1), hi: L, heart: 0.6 }, { title: 'Pour progresser en douceur', lo: L, hi: Math.min(5, L + 1), heart: 0.6 }];
+  if (S.hearts.length) defs.push({ title: 'Avec tes coups de cœur', lo: Math.max(1, L - 1), hi: Math.min(5, L + 1), heart: 2.2 });
+  return defs.map(d => {
+    const [lo, hi] = Engine.levelRange(d.lo, d.hi), ctx = routeCtx({ heart: d.heart });
+    const r = Engine.planRoute(NET, { start: si, end: ei, budget: f.budget, speed: f.speed, walk: f.walk, colors: f.colors, blocked: e => !!e.o && isClosed(e.k === 'lift' ? 'lift' : 'piste', e.o),
+      waitOf, pref: prefOf(ctx, hi), levelOf: edgeLevel, lo, hi });
+    if (r.error) return null;
+    r.opt.loL = d.lo; r.opt.hiL = d.hi; r.reasons = explain(r, ctx); r.sTitle = d.title; return r;
+  }).filter(Boolean);
+}
+function suggestionsCard() {
+  const intro = `Selon ton niveau (${S.level}/10), tes notes et coups de cœur, la météo, l'ouverture et les attentes quand elles sont connues, pour ${fmtMin(S.rf.budget)}.`;
+  return `<div class="card"><b>✨ Suggestions pour toi</b><div class="mut" style="margin:4px 0 8px">${intro}</div>
+    ${sugg ? (sugg.length ? sugg.map((p, i) => `<button class="piste" data-action="sopen" data-i="${i}" style="display:block"><b>${esc(p.sTitle)}</b> <span class="mut">· niveau ${p.opt.loL}–${p.opt.hiL}/5</span><br>
+      <span class="mut">${fmtApprox(p.total)} · ${p.descents} pistes · ${String(p.km).replace('.', ',')} km</span><br><span class="mut">${p.reasons.why.filter(w => !w.startsWith('Durée')).slice(0, 3).map(w => esc(w.length > 95 ? w.slice(0, 92) + '…' : w)).join('<br>')}</span>
+      ${p.reasons.lim.length ? `<br><span class="fit hard" style="font-weight:600">⚠ ${p.reasons.lim.length} limite${p.reasons.lim.length > 1 ? 's' : ''} signalée${p.reasons.lim.length > 1 ? 's' : ''}</span>` : ''}</button>`).join('') : '<p class="mut">Aucune suggestion avec ces réglages : essaie une durée plus longue ou un autre départ.</p>')
+    : ''}
+    <button class="btn sec" data-action="suggest" ${suggBusy ? 'disabled' : ''}>${suggBusy ? 'Calcul…' : sugg ? '↻ Recalculer' : 'Me proposer des itinéraires'}</button></div>`;
 }
 
 /* ---------- Itinéraire ---------- */
@@ -264,13 +370,33 @@ function feltLine(o) {
   const i = info(p), rel = Engine.reliability(i.n), lvl = Engine.levelOf(i.level);
   return i.global == null ? `Difficulté estimée ≈ ${lvl.n}/5 · ${rel.text}` : `Difficulté ressentie ${rel.key === 'low' ? '≈ ' : ''}${lvl.n}/5 (${fmt1(i.global)}/10) · ${rel.text}`;
 }
+/* Consignes d'étape : liées au parcours exact. Un arrêt intermédiaire n'est mentionné que s'il apparaît dans le réseau cartographié pour CETTE remontée. */
+function guidance(pl, i) {
+  const s = pl.steps[i], nx = pl.steps[i + 1], out = [];
+  if (s.kind === 'lift') {
+    out.push(`Prends « ${s.name} » (${liftType(s).toLowerCase()}). Descends à : ${s.toName}${s.altTo ? ` (${s.altTo} m)` : ''}.`);
+    if (s.viaNames?.length) out.push(`Cette remontée passe par ${s.viaNames.length > 1 ? s.viaNames.length + ' stations intermédiaires' : 'une station intermédiaire'} : ${s.viaNames.join(', ')}. Vérifie sur place, avec les panneaux, s'il faut rester dans la cabine ou changer de remontée avant ${s.toName}.`);
+  } else if (s.kind === 'piste') out.push(`Descends « ${stepName(s)} » (piste ${colorName(s.color).toLowerCase()}) jusqu'à : ${s.toName}.`);
+  else if (s.kind === 'walk') out.push(`À pied, en chaussures de ski, sur ${mText(s.m)} jusqu'à : ${s.toName}.`);
+  else out.push(`Suis la liaison à ski jusqu'à : ${s.toName}.`);
+  if (nx) out.push(`Ensuite : ${nx.kind === 'lift' ? `prends « ${nx.name} »` : nx.kind === 'piste' ? `descends « ${stepName(nx)} »` : nx.kind === 'walk' ? `marche ${mText(nx.m)}` : 'liaison à ski'}.`);
+  return out;
+}
+function stepTimes(s) {
+  if (s.kind === 'lift') return `Trajet : ${s.rideMin} min (durée officielle)<br>${esc(waitText(s.wait))}`;
+  if (s.kind === 'piste') return `Descente : ≈ ${s.min} min (estimée d'après la longueur) · ${mText(s.m)}`;
+  return `${s.kind === 'walk' ? 'Marche' : 'Liaison'} : ≈ ${s.min} min (estimée) · ${mText(s.m)}`;
+}
 function stepsHtml(pl) {
   return pl.steps.map((s, i) => {
     const col = s.kind === 'piste' ? `var(--${s.color})` : s.kind === 'lift' ? '#3d4660' : '#a0702a';
     const head = s.kind === 'lift' ? `🚡 ${esc(liftType(s))} · ${esc(s.name)}` : s.kind === 'piste' ? `Piste ${colorName(s.color).toLowerCase()} · ${esc(stepName(s))}` : s.kind === 'walk' ? '🚶 À pied (chaussures de ski)' : '↝ Liaison à ski';
     const info = (s.o && (s.kind === 'piste' ? pisteOf(s.o) : liftOf(s.o))) ? `<button class="btn sm ghost" data-action="openstep" data-i="${i}" aria-label="Détails">ℹ︎</button>` : '';
-    return `<div class="step"><div class="num" style="background:${col}">${i + 1}</div><div class="sp"><b>${head}</b><br>
-      ${s.kind === 'piste' ? `<span class="mut" style="display:block"><span class="sq ${s.color}" style="display:inline-block;vertical-align:-2px"></span> Couleur officielle : ${colorName(s.color).toLowerCase()} · ${esc(feltLine(s.o))}</span>` : ''}<span class="mut">De : ${esc(s.fromName)}${s.altFrom && !s.fromName.startsWith('Carrefour') ? ` (${s.altFrom} m)` : ''}<br>À : ${esc(s.toName)}${s.altTo && !s.toName.startsWith('Carrefour') ? ` (${s.altTo} m)` : ''}<br>${mText(s.m)} · ${s.min} min</span></div>${info}</div>`;
+    return `<div class="step"><div class="num" style="background:${col}">${i + 1}</div><div class="sp"><b>${head}</b>
+      ${s.kind === 'piste' ? `<span class="mut" style="display:block"><span class="sq ${s.color}" style="display:inline-block;vertical-align:-2px"></span> Couleur officielle : ${colorName(s.color).toLowerCase()} · ${esc(feltLine(s.o))}</span>` : ''}
+      <span class="mut" style="display:block">${stepTimes(s)}</span>
+      ${s.kind === 'lift' && s.o ? `<span class="mut" style="display:block">${esc(stateText(liveItem('lift', s.o)))}${liveItem('lift', s.o) ? ' · ' + esc(liveTag()) : ''}</span>` : ''}
+      <div class="mut" style="margin-top:4px;border-left:3px solid var(--line);padding-left:8px">${guidance(pl, i).map(esc).join('<br>')}</div></div>${info}</div>`;
   }).join('') + `<div class="step"><div class="num" style="background:var(--brand)">🏁</div><div class="sp"><b>Arrivée</b><br><span class="mut">${esc(pl.steps[pl.steps.length - 1].toName)}</span></div></div>`;
 }
 function levelSummary(pl) {
@@ -280,15 +406,17 @@ function levelSummary(pl) {
 }
 function planSummary(pl) {
   const cols = {}; pl.steps.filter(s => s.kind === 'piste').forEach(s => cols[s.color] = (cols[s.color] || 0) + 1);
-  const st0 = pl.steps[0], stN = pl.steps[pl.steps.length - 1];
+  const st0 = pl.steps[0], stN = pl.steps[pl.steps.length - 1], t = pl.times, partial = t.waitKnown < t.lifts;
   return `<p style="margin:0 0 10px">Tu pars de <b>${esc(st0.fromName)}</b> et tu finis à <b>${esc(stN.toName)}</b>, en ${pl.steps.length} étapes.</p>
-    <div class="stats"><div><b>${fmtMin(pl.total)}</b><span>durée</span></div><div><b>${pl.descents}</b><span>pistes</span></div><div><b>${String(pl.km).replace('.', ',')}</b><span>km skiés</span></div><div><b>${pl.down}</b><span>m descendus</span></div></div>
+    <div class="stats"><div><b>${fmtApprox(pl.total).replace('≈ ', '≈')}</b><span>durée${partial ? ' (hors attente inconnue)' : ''}</span></div><div><b>${pl.descents}</b><span>pistes</span></div><div><b>${String(pl.km).replace('.', ',')}</b><span>km skiés</span></div><div><b>${pl.down}</b><span>m descendus</span></div></div>
+    <div class="mut" style="margin-top:8px">Détail : descentes ≈ ${t.descent} min · liaisons ≈ ${t.link} min · remontées (trajet) ${t.ride} min · attentes ${t.waitKnown ? t.wait + ' min connues pour ' + t.waitKnown + ' remontée' + (t.waitKnown > 1 ? 's' : '') + ' sur ' + t.lifts : 'information indisponible'}.</div>
     <div class="chips" style="margin-top:8px">${Object.entries(cols).map(([c, n]) => `<span class="chip"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${n}</span>`).join('')}${pl.walkMin ? `<span class="chip">🚶 ${pl.walkMin} min à pied</span>` : ''}</div>
     ${pl.opt.mode === 'felt' ? levelSummary(pl) : ''}
     ${pl.offColor ? `<div class="mut" style="margin-top:6px">dont ${pl.offColor} min sur des pistes plus faciles que celles choisies, pour relier les secteurs.</div>` : ''}
     ${Math.abs(pl.total - pl.opt.budget) > pl.opt.budget * 0.15 ? `<div class="mut" style="margin-top:6px">Durée demandée : ${fmtMin(pl.opt.budget)}. C'est le meilleur parcours trouvé.</div>` : ''}
-    <div class="mut" style="margin-top:6px">Remontées : durées officielles (sans attente). Descentes et marche : durées estimées d'après la longueur.</div>`;
+    <div class="mut" style="margin-top:6px">Durées arrondies : remontées = durées officielles ; descentes, liaisons et marche = estimations d'après la longueur.</div>`;
 }
+function explainCard() { return `<div class="card">${explainHtml(plan)}</div>`; }
 function renderRoute() {
   const f = S.rf, list = starts(), saved = S.route && S.route.stationId === S.station ? S.route : null;
   if (!NET) return '<h2>Mon itinéraire</h2><p class="mut">Le réseau des pistes n\'est pas disponible.</p>';
@@ -297,6 +425,7 @@ function renderRoute() {
   return `<h2>Mon itinéraire</h2>
   ${guide ? `<div class="card" style="border-color:var(--brand)"><b>🔊 Guidage en cours</b><div style="margin:6px 0">${guide.idx < guide.steps.length ? 'Prochaine étape : ' + esc(stepText(guide.steps[guide.idx])) : '🎉 Itinéraire terminé !'}</div>
     <div class="row"><button class="btn sm" data-action="gnext">Étape suivante</button><button class="btn sm ghost" data-action="gstop">Arrêter</button></div></div>` : ''}
+  ${suggestionsCard()}
   <div class="card">
     <label class="mut" for="rstart">D'où pars-tu ?</label>
     <select class="f" id="rstart" data-bind="rstart">${list.map(p => opt(p).replace('<option ', `<option ${p.i === si ? 'selected ' : ''}`)).join('')}</select>
@@ -314,12 +443,15 @@ function renderRoute() {
       <div class="mut" style="margin-top:4px">Jamais plus difficile que ta couleur la plus dure. Les pistes plus faciles peuvent servir de liaison.</div>`}
     <div style="height:10px"></div><div class="mut">Ta vitesse</div>
     <div class="seg" style="margin-top:6px">${[['slow', '🐢 Lent'], ['medium', '⛷ Moyen'], ['fast', '⚡ Rapide']].map(([k, t]) => `<button class="${f.speed === k ? 'on' : ''}" data-action="rf" data-k="speed" data-v="${k}">${t}</button>`).join('')}</div>
+    <div class="row" style="gap:8px;margin-top:8px"><label class="mut" for="wmargin">Marge d'attente par remontée</label><select class="f" id="wmargin" style="width:auto">${[[0, 'aucune'], [3, '3 min'], [5, '5 min'], [8, '8 min']].map(([v, t]) => `<option value="${v}" ${S.waitMargin === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div class="mut">Les attentes connues (exploitant, signalements, moyennes) sont toujours utilisées. Cette marge ne s'applique qu'aux remontées sans donnée ; c'est une estimation de ta part, pas une mesure.</div>
     <label class="chk"><input type="checkbox" data-bind="rwalk" ${f.walk ? 'checked' : ''}> Autoriser de courts chemins à pied (en chaussures de ski)</label>
     <button class="btn" data-action="plan">Créer mon itinéraire</button>
   </div>
   ${planMsg ? `<div class="warn">${esc(planMsg)}</div>` : ''}
   ${plan ? `<div class="card"><h3 style="margin-top:0">Ton itinéraire</h3>${planSummary(plan)}</div>
     <div class="card">${mapSvg(plan)}</div>
+    ${explainCard()}
     <div class="card"><h3 style="margin-top:0">Étape par étape</h3>${stepsHtml(plan)}</div>
     <div class="row"><button class="btn sec" data-action="plan" data-next="1">↻ Autre proposition</button><button class="btn sec" data-action="download">📥 Hors ligne</button></div>
     <div style="height:8px"></div><div class="row"><button class="btn sec" data-action="gstart">🔊 Guidage audio</button><button class="btn ghost" data-action="share" data-k="route">📤 Partager</button></div>` : ''}
@@ -333,13 +465,14 @@ function generateAt(v) {
   const f = S.rf; f.variant = v;
   const si = startIndex(f.start), ei = f.end ? startIndex(f.end) : si;
   const [lo, hi] = Engine.levelRange(f.lo, f.hi);
+  const ctx = routeCtx();
   const r = Engine.planRoute(NET, { start: si, end: ei, budget: f.budget, speed: f.speed, colors: f.colors, walk: f.walk, variant: f.variant, blocked: e => !!e.o && isClosed(e.k === 'lift' ? 'lift' : 'piste', e.o),
-    ...(f.mode === 'felt' ? { levelOf: edgeLevel, lo, hi } : {}) });
+    waitOf, pref: prefOf(ctx, hi), ...(f.mode === 'felt' ? { levelOf: edgeLevel, lo, hi } : {}) });
   planMsg = '';
   if (r.error) {
     plan = null;
     planMsg = f.mode === 'color' && !f.colors.length ? 'Choisis au moins une couleur de piste.' : !f.walk ? "Aucun itinéraire sans marche depuis ce départ : autorise les courts chemins à pied." : "Aucun itinéraire trouvé avec ces choix : essaie une durée plus longue, une autre couleur ou un autre départ.";
-  } else { plan = r; plan.opt.loL = f.lo; plan.opt.hiL = f.hi; }
+  } else { plan = r; plan.opt.loL = f.lo; plan.opt.hiL = f.hi; plan.reasons = explain(plan, ctx); }
   save(); render();
 }
 
@@ -448,6 +581,7 @@ function sharePayload(kind) {
   const pr = S.profile;
   const f = S.rf, r = kind === 'route' && plan ? { start: starts().find(p => p.i === plan.opt.start)?.name, end: plan.opt.end !== plan.opt.start ? starts().find(p => p.i === plan.opt.end)?.name : '', budget: plan.opt.budget, speed: plan.opt.speed, colors: plan.opt.colors, walk: plan.opt.walk, variant: plan.opt.variant, mode: plan.opt.mode, lo: plan.opt.loL || 0, hi: plan.opt.hiL || 0 } : null;
   return { v: 2, n: pr.pseudo || 'Skieur', l: S.level, d: pr.discipline, s: pr.status, w: pr.wants, so: pr.socials, st: S.station, h: S.hearts, r, t: Date.now(),
+    w: S.waits.slice(-20).map(w => [w.id, w.m, w.t]),
     v: S.vlog.slice(-80).map(v => [v.id, v.s, v.t, (v.tags || []).map(t => TAGS.indexOf(t)).filter(i => i >= 0)]) };
 }
 function shareText(kind) {
@@ -481,6 +615,7 @@ function importFriend(raw) {
   };
   if (Array.isArray(o.v)) f.v = o.v.slice(0, 100).filter(v => Array.isArray(v) && typeof v[0] === 'string' && pisteOf(v[0]) && Number.isInteger(v[1]) && v[1] >= 1 && v[1] <= 10 && Number.isFinite(v[2]) && v[2] > 1.6e12 && v[2] < Date.now() + DAY)
     .map(v => [v[0], v[1], v[2], (Array.isArray(v[3]) ? v[3] : []).filter(i => Number.isInteger(i) && i >= 0 && i < TAGS.length)]);
+  if (Array.isArray(o.w)) f.w = o.w.slice(0, 30).filter(w => Array.isArray(w) && liftOf(w[0]) && Number.isFinite(w[1]) && w[1] >= 0 && w[1] <= 60 && Number.isFinite(w[2]) && w[2] > Date.now() - 3 * DAY && w[2] < Date.now() + DAY).map(w => [w[0], w[1], w[2]]);
   const r = o.r;
   if (r && typeof r.start === 'string' && r.start.length < 120 && Engine.SPEED_KMH[r.speed] && Array.isArray(r.colors))
     f.r = { start: r.start, end: typeof r.end === 'string' ? r.end.slice(0, 120) : '', budget: Math.min(480, Math.max(30, +r.budget || 120)), speed: r.speed, colors: r.colors.filter(c => COLORS.includes(c)), walk: r.walk !== false, variant: Math.min(50, Math.max(0, +r.variant || 0)),
@@ -778,6 +913,7 @@ function renderNotifCard() {
     <div class="row" style="gap:8px;margin-top:6px"><label class="mut" for="nmax">Maximum par jour</label><select class="f" id="nmax" style="width:auto">${[1, 3, 5, 10].map(v => `<option value="${v}" ${n.max === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
     <div class="mut" style="margin-top:8px">${perm === 'granted' ? 'Notifications système autorisées.' : perm === 'denied' ? 'Notifications système refusées par le navigateur : invitations dans l\'appli seulement.' : perm === 'unsupported' ? 'Notifications système indisponibles ici : invitations dans l\'appli seulement.' : 'Notifications système non encore autorisées.'}
       ${perm === 'default' ? '<button class="btn sm sec" data-action="nperm">Autoriser</button>' : ''}</div>
+    <div class="mut" style="margin-top:6px">Notifications appli fermée : ${CFG.vapidKey ? 'clé configurée, mais le service d\'envoi n\'est pas encore fourni.' : 'non configurées (il faut un serveur Web Push avec clés VAPID).'}</div>
     <div class="row" style="margin-top:8px"><button class="btn sm ghost" data-action="ntest">Voir un exemple</button></div>` : ''}
     <details style="margin-top:10px"><summary class="mut">Ce qu'il faut pour la détection automatique</summary>
       <p class="mut">Autorisations : <b>notifications</b> et <b>position précise</b> (GPS, avec altitude). Sur le web, le téléphone suspend l'appli quand l'écran est verrouillé : la détection (et donc l'invitation « en remontée ») ne marche que <b>appli ouverte</b>, par exemple en mode poche avec l'écran maintenu allumé. L'invitation de fin de journée demande aussi que l'appli soit ouverte à l'heure choisie ; sinon elle s'affiche à ton retour. Pour être prévenu <b>appli fermée</b>, il faut des notifications poussées (serveur Web Push avec clés VAPID, voir relay/README.md) et, pour suivre ta position en arrière-plan, une appli native (Capacitor). Sur iPhone, installe d'abord l'appli sur l'écran d'accueil (iOS 16.4 minimum). Rien de tout cela n'est supposé actif : sans détection, ajoute tes pistes à la main ou cherche une piste ci-dessous.</p></details></div>
@@ -828,6 +964,9 @@ document.addEventListener('click', e => {
     case 'qday': { const p = pisteOf(rateCtx.id); if (!logToday().some(e => e.pick === p.id)) addLog({ type: 'piste', cands: [p.id], altFrom: p.altFrom, altTo: p.altTo, t: Date.now(), manual: true }); rateSheet(); break; }
     case 'qwrong': rateCtx.correcting = !rateCtx.correcting; rateSheet(); break;
     case 'qpick': { const log = S.log[todayKey()]; if (rateCtx.k != null) { const e = logToday()[rateCtx.k]; if (e) { e.pick = d.id; save(); } } rateCtx.id = d.id; rateCtx.correcting = false; rateSheet(); break; }
+    case 'wreport': S.waits.push({ id: d.id, m: +d.m, t: Date.now() }); S.waits = S.waits.slice(-300); save(); toast('Merci ! Attente signalée.'); liftSheet(d.id); break;
+    case 'suggest': suggBusy = true; render(); setTimeout(() => { sugg = computeSuggestions(); suggBusy = false; render(); }, 20); break;
+    case 'sopen': { plan = sugg[+d.i]; Object.assign(S.rf, { mode: 'felt', lo: plan.opt.loL, hi: plan.opt.hiL }); save(); render(); window.scrollTo(0, 0); break; }
     case 'sos': if (confirm('Appeler le 112 (urgences) ?')) location.href = 'tel:112'; break;
     case 'close': closeSheet(); break;
     case 'open': sheetPeriod = 0; showChars = false; pisteSheet(d.id); break;
@@ -901,6 +1040,7 @@ document.addEventListener('change', e => {
   else if (b === 'nevening') { S.notif.evening = t.checked; save(); render(); }
   else if (t.id === 'neve') { S.notif.eveningTime = t.value || '17:30'; S.pro.evening = false; save(); }
   else if (t.id === 'nmax') { S.notif.max = +t.value; save(); }
+  else if (t.id === 'wmargin') { S.waitMargin = +t.value; save(); }
   else if (t.id === 'qother' && t.value) { rateCtx.id = t.value; rateCtx.k = null; rateCtx.correcting = false; rateSheet(); }
   else if (t.id === 'pseudo') { S.profile.pseudo = t.value.trim().slice(0, 30); save(); }
   else if (t.dataset.range === 'level2') { render(); }
@@ -917,5 +1057,5 @@ window.addEventListener('online', netState); window.addEventListener('offline', 
 setInterval(() => { if (document.visibilityState === 'visible' && $('#pocket').hidden) { const k = todayKey(); S.screen[k] = (S.screen[k] || 0) + 1; if (S.screen[k] % 10 === 0) save(); } }, 1000);
 
 $('#station').innerHTML = Object.values(DATA.stations).map(s => `<option value="${s.id}" ${s.id === S.station ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
-render(); netState(); resetPro(); handleDeepLink(location.hash); eveningCheck(); setInterval(eveningCheck, 60000);
+loadWaitHistory(); render(); netState(); resetPro(); handleDeepLink(location.hash); eveningCheck(); setInterval(eveningCheck, 60000);
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -55,6 +55,9 @@ class Serveur(unittest.TestCase):
             self.assertEqual(r2.headers['X-Relay-Stale'], '1'); self.assertTrue(json.loads(r2.read())['stale'])
             with self.assertRaises(urllib.error.HTTPError) as cm: urllib.request.urlopen(f'http://127.0.0.1:{port}/autre')
             self.assertEqual(cm.exception.code, 404)
+            req = urllib.request.Request(f'http://127.0.0.1:{port}/push/subscribe', data=b'{}', method='POST')
+            with self.assertRaises(urllib.error.HTTPError) as cm2: urllib.request.urlopen(req)
+            self.assertEqual(cm2.exception.code, 501)   # Web Push non configuré : réponse explicite, pas de faux succès
         finally:
             srv.shutdown()
 
