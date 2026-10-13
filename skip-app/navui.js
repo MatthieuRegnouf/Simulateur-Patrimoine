@@ -3,7 +3,7 @@
 
 /* ---------- Fond de carte ---------- */
 let bm = { pm: null, from: '', error: '', busy: false, date: '', tried: false };
-let pvMap = null, navMap = null, selStep = null, netCache = null, showNet = false;
+let pvMap = null, navMap = null, selStep = null, netCache = null, showNet = true;
 async function loadBasemap(prefer) {
   bm.busy = true; bm.tried = true; updateBaseNote();
   const r = await Offline.openBasemap(prefer); let date = '';
@@ -16,14 +16,18 @@ const baseNote = () => bm.busy ? 'Chargement du fond de carte…' : bm.pm
   ? (bm.from === 'embedded' ? '🗺 Fond de carte intégré à cet aperçu.' : bm.from === 'device' ? '🗺 Fond de carte gardé sur ton téléphone : il fonctionne sans réseau.' : '🗺 Fond de carte lu par le réseau. Télécharge l\'itinéraire pour l\'avoir sans réseau.') + (bm.date ? ` Données OpenStreetMap du ${frDate(bm.date)}.` : '')
   : '⚠︎ Pas de fond de carte : ' + (bm.error || 'indisponible.') + ' Le tracé et les étapes restent affichés.';
 function updateBaseNote() { const n = $('#pvnote'); if (n) n.textContent = baseNote(); }
-function netEdges() { return netCache || (netCache = NET.edges.map(e => ({ k: e.k, c: e.c, g: NET.geom(e) }))); }
+function domain() {   // réseau tel que calculé : mêmes tracés que ceux utilisés par le planificateur
+  if (netCache) return netCache;
+  const st = new Map(); NET.edges.filter(e => e.k === 'lift' && e.n).forEach(e => [[e.a, 'Départ'], [e.b, 'Arrivée']].forEach(([i, w]) => { const n = NET.nodes[i]; if (n.alt > 0 && !st.has(i)) st.set(i, { lat: n.lat, lng: n.lng, n: `${w} ${e.n}` }); }));
+  return netCache = { edges: NET.edges.map(e => ({ k: e.k, c: e.c, n: e.n, o: e.o, g: NET.geom(e) })), stations: [...st.values()] };
+}
 
 /* ---------- Carte d'aperçu (onglet Itinéraire) ---------- */
 const planId = pl => { let h = 5381; const s = pl.steps.map(x => x.edges.join('.')).join('|'); for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h >>> 0); };
 function previewHtml() {
   return `<div class="mapbox" id="pvmap" style="height:min(62vh,420px)"></div>
     <div class="legend"><span><i class="lg solid"></i> piste (couleur officielle)</span><span><i class="lg dash"></i> remontée</span><span><i class="lg dot"></i> à pied</span><span><i class="lg dash2"></i> liaison à ski</span><span>① numéro d'étape · ➤ sens</span></div>
-    <label class="chk" style="padding:2px 0"><input type="checkbox" data-bind="pvnet" ${showNet ? 'checked' : ''}> Montrer aussi les autres pistes (en transparence)</label>
+    <label class="chk" style="padding:2px 0"><input type="checkbox" data-bind="pvnet" ${showNet ? 'checked' : ''}> Montrer le réseau du domaine (pistes, remontées, noms) en retrait</label>
     <div class="mut" id="pvnote">${esc(baseNote())}</div>
     <div class="mut" style="margin-top:4px">Touche une étape de la liste, ou le tracé, pour la mettre en évidence. Les consignes écrites et le tracé viennent des mêmes données.</div>
     ${consistencyHtml(plan)}`;
@@ -45,7 +49,7 @@ function mountPreview() {
   if (pvMap) { pvMap.destroy(); pvMap = null; }
   const h = $('#pvmap'); if (!h || !plan) return;
   pvMap = SkiMap.create(h, { pm: bm.pm, onSelect: i => selectStep(i, true), pad: { t: 24, b: 24, l: 24, r: 24 } });
-  pvMap.setRoute(plan, Nav.build(plan)); pvMap.setNetwork(netEdges(), showNet); pvMap.fit();
+  pvMap.setRoute(plan, Nav.build(plan)); pvMap.setDomain(domain(), showNet); pvMap.fit();
   if (selStep != null && selStep < plan.steps.length) pvMap.highlight(selStep, true);
   if (!bm.tried) loadBasemap();
 }
@@ -69,11 +73,18 @@ async function refreshOffStat() {
 function itemsHtml(items) {
   return items.map(it => `<div class="net-row"><span style="width:22px">${it.ok ? '✅' : it.required ? '❌' : '⚠︎'}</span><div class="sp"><b>${esc(it.label)}</b><div class="mut">${esc(it.detail || '')}</div></div></div>`).join('');
 }
-function whatWorksHtml() {
-  return `<details class="mut" style="margin-top:8px"><summary><b>Sans réseau, ça marche / ça ne marche pas</b></summary>
-    <p style="margin:6px 0 2px"><b>✅ Sans réseau</b> (si l'itinéraire est complet) : carte et tracé · étapes écrites · ta position GPS (le GPS du téléphone n'a pas besoin d'internet, mais peut être plus lent à démarrer) · avancement et détection de sortie de parcours · <b>recalcul d'itinéraire depuis ta position</b> : le calcul se fait sur le téléphone, avec les pistes et remontées connues et les fermetures enregistrées au moment du téléchargement · tes notes (envoyées plus tard).</p>
-    <p style="margin:2px 0"><b>🌐 Besoin de réseau</b> : ouverture et fermetures en direct · temps d'attente en direct · météo · notes des autres skieurs · mise à jour du fond de carte. Hors ligne, l'appli n'affiche que les <b>dernières données enregistrées, datées</b>, jamais présentées comme du direct.</p>
-    <p style="margin:2px 0"><b>⚠︎ Limites</b> : un recalcul ne marche que si tu es à moins de 150 m d'un point connu du réseau. Les liaisons viennent d'OpenStreetMap et peuvent être approximatives. Le téléphone peut effacer le stockage si l'espace manque : l'état affiché ci-dessus est revérifié à chaque ouverture.</p></details>`;
+/* Ce qui marche sans réseau, mesuré sur l'état réel du téléchargement (pas promis d'avance) */
+function whatWorksHtml(sv) {
+  const it = k => sv && sv.items && sv.items.find(i => i.key === k), mapOk = !!(it('map') && it('map').ok) && offStat.map !== false, appOk = !!(it('app') && it('app').ok) && !(offStat.checked && offStat.miss.length), routeOk = !!(it('route') && it('route').ok);
+  const localVoice = Voice.list(getVoices(), false).some(v => v.local), row = (ok, t, d) => `<div class="net-row"><span style="width:22px">${ok === true ? '✅' : ok === false ? '❌' : '⚠︎'}</span><div class="sp"><b>${t}</b><div class="mut">${d}</div></div></div>`;
+  return `<div style="margin-top:8px"><b>Hors ligne, point par point</b>
+    ${row(sv ? mapOk : null, 'Consulter la carte', mapOk ? 'Fond de carte, noms des pistes et des remontées, tracé : tout est sur le téléphone.' : 'Sans le fond de carte téléchargé, seuls le tracé et les noms du parcours s\'affichent (sur fond neutre).')}
+    ${row(sv ? appOk : null, 'Suivi de ta position', 'C\'est le GPS du téléphone, indépendant d\'internet. Le premier point peut prendre plus longtemps sans réseau. Le suivi s\'arrête si l\'écran s\'éteint ou si l\'appli passe en arrière-plan.')}
+    ${row(sv ? appOk && routeOk : null, 'Guidage sur le parcours téléchargé', 'Progression, instruction courte, détail des étapes, sortie de parcours : calculés sur le téléphone.')}
+    ${row(sv ? appOk : null, 'Recalcul d\'itinéraire', 'Disponible : le calcul se fait sur le téléphone, avec les pistes, remontées et fermetures connues au téléchargement. Seulement si tu es à moins de 150 m d\'un point connu du réseau ; sinon l\'appli te montre le point du tracé le plus proche et la direction.')}
+    ${row(localVoice ? true : null, 'Guidage vocal', localVoice ? 'Une voix locale est installée : elle parle sans réseau.' : 'Aucune voix locale détectée : sans réseau, seules les instructions écrites seront fiables.')}
+    ${row(false, 'Besoin d\'une connexion', 'Ouverture et fermetures en direct, temps d\'attente en direct, météo, mise à jour du fond de carte. Hors ligne : dernières données enregistrées, datées, jamais présentées comme du direct.')}
+  </div>`;
 }
 function offCardHtml() {
   const sv = S.route && S.route.stationId === S.station ? S.route : null;
@@ -81,7 +92,7 @@ function offCardHtml() {
   const cur = plan && sv && sv.planId === planId(plan);
   if (dl.run) return `<b>📥 Téléchargement pour l'utilisation hors ligne…</b>${bar}`;
   if (!sv) return plan ? `<b>📥 Utilisation hors ligne</b><p class="mut" style="margin:6px 0">Garde cet itinéraire sur ton téléphone : tracé, étapes écrites, application et fond de carte de la zone (≈ 5,4 Mo). Tu pourras naviguer sans réseau en montagne.</p>
-      <button class="btn" data-action="dlstart">Télécharger pour une utilisation hors ligne</button>${whatWorksHtml()}` : '';
+      <button class="btn" data-action="dlstart">Télécharger pour une utilisation hors ligne</button><div class="mut" style="margin-top:6px">Taille : environ <b>5,9 Mo</b> (fond de carte 5,4 Mo + application 0,5 Mo). Garde sur ton téléphone : carte interactive de la zone, tracé du parcours, noms des pistes et remontées, étapes et instructions. Fond de carte : données OpenStreetMap, un seul fichier (les tuiles du site openstreetmap.org ne peuvent pas être gardées hors ligne : c'est interdit).</div>${whatWorksHtml(null)}` : '';
   const v = sv.items ? VERDICT[sv.verdict] || VERDICT.partiel : ['warn', 'Ancien enregistrement : tracé seul'];
   const mapGone = offStat.checked && sv.items && sv.items.find(i => i.key === 'map' && i.ok) && offStat.map === false, shellGone = offStat.checked && offStat.miss.length;
   return `<b>📥 ${cur ? 'Cet itinéraire est' : 'Un itinéraire est'} gardé sur ton téléphone</b> <span class="badge st-${v[0]}">${v[1]}</span>
@@ -90,7 +101,7 @@ function offCardHtml() {
     ${mapGone ? '<div class="warn" style="margin-top:6px">⚠︎ Le téléphone a effacé le fond de carte téléchargé. Retélécharge l\'itinéraire.</div>' : ''}${shellGone ? `<div class="warn" style="margin-top:6px">⚠︎ Fichiers de l'appli absents du cache : ${esc(offStat.miss.join(', '))}. Reconnecte-toi puis mets à jour.</div>` : ''}
     <div class="mut" style="margin-top:6px">${sv.liveAt ? `Ouverture des pistes : instantané du ${esc(dm(sv.liveAt))} à ${esc(hm(sv.liveAt))}, <b>pas du direct</b>.` : 'Ouverture des pistes : non enregistrée.'} ${sv.wxAt ? `Météo : prévisions du ${esc(dm(sv.wxAt))} à ${esc(hm(sv.wxAt))}, <b>pas du direct</b>.` : 'Météo : non enregistrée.'} Temps d'attente : estimations, jamais du direct hors ligne.${sv.mapDate ? ` Fond de carte : données OpenStreetMap du ${frDate(sv.mapDate)}.` : ''}</div>
     <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-action="${cur ? 'nstart' : 'loadsaved'}">${cur ? '🧭 Ouvrir le GPS' : 'Ouvrir cet itinéraire'}</button><button class="btn sm sec" data-action="dlstart" ${navigator.onLine ? '' : 'disabled'}>${sv.verdict === 'complet' ? 'Mettre à jour' : 'Réessayer le téléchargement'}</button><button class="btn sm ghost" data-action="delsaved">Supprimer</button></div>
-    ${navigator.onLine ? '' : '<div class="mut" style="margin-top:4px">Mise à jour impossible sans réseau.</div>'}${whatWorksHtml()}`;
+    ${navigator.onLine ? '' : '<div class="mut" style="margin-top:4px">Mise à jour impossible sans réseau.</div>'}${whatWorksHtml(sv)}`;
 }
 function updateOffCard() { const c = $('#offcard'); if (c) c.innerHTML = offCardHtml(); }
 async function downloadPackage() {
@@ -159,6 +170,7 @@ function profileAction(d) {
 }
 
 /* ---------- Navigation ---------- */
+let navIdx = null; const navIndex = () => navIdx || (navIdx = Nav.indexNet(NET));
 let nv = null;   // { st, watch, tick, wake, open, expanded, lastStep, off:{ignore}, said }
 const KIND_ICON = { lift: '🚡', piste: '⛷', walk: '🚶', link: '↝' };
 const kindCol = s => s.kind === 'piste' ? `var(--${s.color})` : s.kind === 'lift' ? '#3d4660' : '#a0702a';
@@ -178,6 +190,14 @@ function remainMin(pl, st) {   // minutes restantes : estimation, étape en cour
   let t = 0; pl.steps.forEach((s, i) => { if (i > st.step) t += s.min + (s.waitMin || 0); else if (i === st.step) { const r = st.route.ranges[i], len = r.s1 - r.s0 || 1; t += (s.min + (s.waitMin || 0)) * (st.started ? Math.max(0, r.s1 - st.s) / len : 1); } });
   return Math.round(t);
 }
+const COL_FR = { green: 'verte', blue: 'bleue', red: 'rouge', black: 'noire' };
+function hereHtml(st) {   // où est-on sur le domaine : information, jamais un recalage de la position
+  const h = st.here; if (!h || h.state === 'none') return '';
+  const nm = c => `${c.k === 'lift' ? 'remontée' : 'piste'} ${c.n || '(sans nom)'}${c.c ? ' ' + COL_FR[c.c] : ''}`;
+  return h.state === 'unique' ? `<div class="nstat">📍 Près de : <b>${esc(nm(h.best))}</b> (d'après la position mesurée, marge ± ${Math.round(h.cor)} m)</div>`
+    : `<div class="nstat g-near">📍 Plusieurs pistes ou remontées dans la marge d'erreur du GPS : ${h.cands.map(c => esc(nm(c))).join(' · ')}. Impossible de dire laquelle : la position n'est pas recalée.</div>`;
+}
+const gpsUnusable = st => st.geo === 'denied' || st.geo === 'unavailable' || (!st.fix && st.geo !== 'idle' && Date.now() - st.t0 > 30000);
 function navTopHtml() {
   const st = nv.st, pl = plan, stt = Nav.statusText(st), fin = Nav.atEnd(st), i = st.step;
   let ins; const rem = st.started ? Nav.stepRemaining(st) : null;
@@ -191,7 +211,7 @@ function navTopHtml() {
   const recalc = pl.recalc ? `<div class="nstat">↻ Itinéraire recalculé à ${esc(hhmm(pl.recalc.at))} avec les données enregistrées. Non téléchargé.</div>` : '';
   return `<div class="nmain"><div class="nico" style="background:${st.started && pl.steps[i] ? kindCol(pl.steps[i]) : 'var(--brand)'}">${ins.icon}</div><div class="sp"><div class="nbig">${esc(ins.main)}</div><div class="nsub">${esc(ins.sub)}</div>${fin ? '' : `<div class="nsub nnext">${esc(nextLine(pl, i))}</div>`}</div>
       <button class="nq" data-action="nquit" aria-label="Arrêter la navigation et revenir au résumé">✕ Arrêter</button></div>
-    <div class="nstat g-${stt.key}">${{ good: '🟢', fair: '🟡', poor: '🟠', stale: '🟠', denied: '🚫', unavailable: '🚫', off: '🔴', near: '🟡', wait: '⏳' }[stt.key] || ''} ${esc(stt.text)}</div>${offBlock}${off}${recalc}`;
+    <div class="nstat g-${stt.key}">${{ good: '🟢', fair: '🟡', poor: '🟠', stale: '🟠', denied: '🚫', unavailable: '🚫', off: '🔴', near: '🟡', wait: '⏳' }[stt.key] || ''} ${esc(stt.text)}</div>${hereHtml(st)}${offBlock}${off}${recalc}`;
 }
 function navBottomHtml() {
   const st = nv.st, pl = plan, tot = st.route.total, done = st.started ? Math.min(st.s, tot) : 0, pct = tot ? Math.round(done / tot * 100) : 0, km = m => (m / 1000).toFixed(1).replace('.', ',');
@@ -199,13 +219,13 @@ function navBottomHtml() {
     return `<div class="nrow ${state}${selStep === k ? ' sel' : ''}" data-action="nsel" data-i="${k}"><div class="num" style="background:${kindCol(s)}">${k + 1}</div><div class="sp"><b>${KIND_ICON[s.kind]} ${esc(instrFor(pl, k, null, true).main)}</b><div class="mut">${esc(instrFor(pl, k, null, true).sub)} · ${mText(r.s1 - r.s0)}</div></div><span>${state === 'done' ? '✔︎' : state === 'cur' ? '●' : ''}</span></div>`; }).join('');
   return `<div class="nprog"><div class="bar"><i style="width:${pct}%"></i></div>
     <div class="mut">${st.started ? `Parcouru ${km(done)} km · reste ${km(tot - done)} km · ≈ ${remainMin(pl, st)} min (estimation)` : `Itinéraire : ${km(tot)} km · ≈ ${remainMin(pl, st)} min (estimation)`}</div></div>
-    <div class="row nbtn"><button class="btn sm sec" data-action="nprev" aria-label="Étape précédente">◀ Précédente</button><button class="btn sm sec" data-action="nnext">Suivante ▶</button><button class="btn sm ${nv.expanded ? '' : 'ghost'}" data-action="nlist">${nv.expanded ? '▼ Masquer' : '▲ Étapes'}</button></div>
-    ${nv.expanded ? `<div class="nlist">${rows}</div>` : ''}`;
+    <div class="row nbtn">${gpsUnusable(st) ? `<button class="btn sm sec" data-action="nprev" aria-label="Étape précédente">◀ Étape précédente</button><button class="btn sm" data-action="nnext">Étape faite ▶</button>` : ''}<button class="btn sm ${nv.expanded ? '' : 'ghost'}" data-action="nlist">${nv.expanded ? '▼ Masquer le détail' : '▲ Détail du parcours'}</button></div>
+    ${nv.expanded ? `<div class="mut" style="margin-top:8px">Ta position et ta progression viennent du GPS. <b>Correction manuelle</b> de l'étape (si le GPS se trompe) : <button class="btn sm ghost" data-action="nprev">◀</button> <button class="btn sm ghost" data-action="nnext">▶</button> — cela ne déplace jamais le marqueur.</div><div class="nlist">${rows}</div>` : ''}`;
 }
 function navCtlHtml() {
   const f = navMap && navMap.follow;
   return `<button data-action="nzin" aria-label="Zoom avant">＋</button><button data-action="nzout" aria-label="Zoom arrière">−</button>
-    <button data-action="nfollow" class="${f ? 'on' : ''}" aria-label="Recentrer sur ma position" ${nv.st.pos ? '' : 'disabled'}>🎯</button><button data-action="nfit" aria-label="Voir tout l'itinéraire">⤢</button>`;
+    <button data-action="nfollow" class="${f ? 'on' : ''}" aria-label="Recentrer sur ma position" ${nv.st.pos ? '' : 'disabled'}>🎯</button><button data-action="nfit" aria-label="Voir tout l'itinéraire">⤢</button><button data-action="nvoice" aria-label="Réglages de la voix" class="${S.audio ? '' : 'mute'}">${S.audio ? '🔊' : '🔇'}</button>`;
 }
 let navHtmlCache = {};
 function navPaint(force) {
@@ -217,41 +237,45 @@ function navFix(p) {
 }
 function navUpdate() {
   if (!nv) return; const st = nv.st;
-  navMap.setPosition(st.q === 'stale' ? null : st.fix, st.q, st.off && st.nearest ? st.nearest : null);
+  navMap.setPosition(st.fix, st.q, st.off && st.nearest ? st.nearest : null);   // position mesurée, jamais recalée ; une ancienne position est dessinée en gris et datée
   if (st.started) navMap.setProgress(st.s);
-  if (st.step !== nv.lastStep && st.started) { nv.lastStep = st.step; selStep = null; navMap.highlight(null); if (S.audio) { const x = Nav.atEnd(st) ? 'Arrivée atteinte.' : instrFor(plan, st.step).main + '. ' + instrFor(plan, st.step).sub; speak(x); } }
-  if (st.off && !nv.wasOff) { nv.wasOff = true; nv.ignore = false; speak('Tu t\'es écarté de l\'itinéraire.'); }
-  if (!st.off) { nv.wasOff = false; nv.ignore = false; }
-  if (Nav.atEnd(st) && !nv.done) { nv.done = true; speak('Itinéraire terminé. Bravo !'); }
-  if (st.q === 'stale' && !nv.wasStale) { nv.wasStale = true; speak('Position perdue.'); } else if (st.q !== 'stale') nv.wasStale = false;
+  if (st.step !== nv.lastStep && st.started) { nv.lastStep = st.step; selStep = null; navMap.highlight(null); }
+  if (!st.off) { nv.wasOff = false; nv.ignore = false; } else if (!nv.wasOff) { nv.wasOff = true; nv.ignore = false; }
+  if (S.audio) { const m = Voice.decide({ st, plan, instr: instrFor, mem: nv.mem }); if (m.length) speak(m.join(' ')); } else Voice.decide({ st, plan, instr: instrFor, mem: nv.mem });   // la mémoire avance même en silence : pas de rattrapage à la réactivation
+  if (Nav.atEnd(st)) nv.done = true;
   navPaint();
 }
 async function startNav() {
   if (!plan || nv) return;
   const ov = $('#nav'); ov.hidden = false; document.body.classList.add('navopen');
   ov.innerHTML = `<div id="nmap" class="nmap"></div><div id="ntop" class="ntop"></div><div id="nctl" class="nctl"></div><div id="nbot" class="nbot"></div>`;
-  nv = { st: Nav.create(plan), expanded: false, lastStep: -1, tick: null, watch: null, wake: null, wasOff: false, ignore: false };
+  nv = { st: Nav.create(plan, navIndex()), mem: {}, expanded: false, lastStep: -1, tick: null, watch: null, wake: null, wasOff: false, ignore: false };
   navHtmlCache = {}; selStep = null;
   navMap = SkiMap.create($('#nmap'), { pm: bm.pm, label: 'Carte de navigation', pad: { t: 150, b: 130, l: 30, r: 60 }, onFollow: () => navPaint(), onSelect: i => { selStep = i; navMap.highlight(i); navPaint(true); } });
-  navMap.setRoute(plan, nv.st.route); navMap.setNetwork(netEdges(), false); navMap.fit();
+  navMap.setRoute(plan, nv.st.route); navMap.setDomain(domain(), true); navMap.fit();
   if (!bm.tried || !bm.pm) loadBasemap(); else navMap.setBase(bm.pm);
   navPaint(true);
   if (!navigator.geolocation) { nv.st.geo = 'unavailable'; } else {
     nv.watch = navigator.geolocation.watchPosition(p => {
       const fix = navFix(p); nv.st.geo = 'ok'; const was = nv.st.started; Nav.update(nv.st, fix);
-      if (!was && nv.st.started && !nv.followed) { nv.followed = true; navMap.setFollow(true, 16); }
+      if (!nv.followed && nv.st.q !== 'poor' && nv.st.dev != null && nv.st.dev < 1500) { nv.followed = true; navMap.setFollow(true, 16); }   // la carte suit la position dès qu'elle est fiable et proche du parcours
       if (fix.alt != null) { try { handleFix({ lat: fix.lat, lng: fix.lng, alt: fix.alt, t: fix.t }); } catch { /* journal de la journée facultatif */ } }
       navUpdate();
     }, err => { nv.st.geo = err.code === 1 ? 'denied' : err.code === 3 ? 'timeout' : 'unavailable'; if (err.code === 1 && nv.watch != null) { navigator.geolocation.clearWatch(nv.watch); nv.watch = null; } navUpdate(); },
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
   }
   navUpdate();
   nv.tick = setInterval(() => { Nav.tick(nv.st); navUpdate(); }, 1000);
-  try { if (navigator.wakeLock) nv.wake = await navigator.wakeLock.request('screen'); } catch { /* facultatif */ }
-  if (S.audio && plan.steps[0]) speak('Navigation démarrée. ' + instrFor(plan, 0).main);
+  nv.vis = async () => {   // l'écran éteint ou l'appli en arrière-plan suspend la géolocalisation du navigateur : on le dit, et on réactive le maintien de l'écran
+    if (document.hidden) { nv.hiddenAt = Date.now(); return; }
+    if (nv.hiddenAt && Date.now() - nv.hiddenAt > 15000) toast('Appli restée en arrière-plan : ta position n\'est pas suivie quand l\'écran est éteint. Garde l\'écran allumé.', 7000);
+    nv.hiddenAt = 0; try { if (navigator.wakeLock && nv && !nv.wake) nv.wake = await navigator.wakeLock.request('screen'); } catch { /* facultatif */ }
+  };
+  document.addEventListener('visibilitychange', nv.vis);
+  try { if (navigator.wakeLock) { nv.wake = await navigator.wakeLock.request('screen'); nv.wake.addEventListener('release', () => { if (nv) nv.wake = null; }); } } catch { /* facultatif */ }
 }
 function stopNav() {
-  if (!nv) return; clearInterval(nv.tick); if (nv.watch != null) navigator.geolocation.clearWatch(nv.watch); try { nv.wake && nv.wake.release(); } catch { /* ignore */ }
+  if (!nv) return; clearInterval(nv.tick); document.removeEventListener('visibilitychange', nv.vis); try { speechSynthesis.cancel(); } catch { /* ignore */ } if (nv.watch != null) navigator.geolocation.clearWatch(nv.watch); try { nv.wake && nv.wake.release(); } catch { /* ignore */ }
   navMap && navMap.destroy(); navMap = null; nv = null; $('#nav').hidden = true; $('#nav').innerHTML = ''; document.body.classList.remove('navopen'); if (S.tab === 'route') { render(); setTimeout(() => $('#planres')?.scrollIntoView({ block: 'start' }), 30); }
 }
 /* Recalcul depuis la position : fonctionne sans réseau (le planificateur est dans l'appli) mais seulement près d'un point connu du réseau */
@@ -262,9 +286,9 @@ function navRecalc() {
   const r = computePlan({ ...req, start: rs.idx, end: endIdx, budget: minLeft, variant: 0 });
   if (r.error) { toast('Aucun itinéraire trouvé d\'ici jusqu\'à l\'arrivée prévue avec tes filtres (le réseau connu ne permet pas de la rejoindre). Reviens vers le tracé.', 7000); return; }
   r.recalc = { at: Date.now(), from: rs.node.label || 'position' }; r.req = req; r.opt.loL = plan.opt.loL; r.opt.hiL = plan.opt.hiL; r.reasons = explain(r, routeCtx());
-  plan = r; selStep = null; nv.st = Nav.create(plan); nv.lastStep = -1; nv.wasOff = false; nv.ignore = false; navHtmlCache = {};
+  plan = r; selStep = null; nv.st = Nav.create(plan, navIndex()); nv.mem = {}; nv.lastStep = -1; nv.wasOff = false; nv.ignore = false; navHtmlCache = {};
   navMap.setRoute(plan, nv.st.route); Nav.update(nv.st, nv.st.fix); navMap.fit(); navUpdate(); navPaint(true);
-  speak('Itinéraire recalculé.'); toast('Itinéraire recalculé depuis ta position (données enregistrées).', 4500);
+  if (S.audio) speak('Itinéraire recalculé.'); toast('Itinéraire recalculé depuis ta position (données enregistrées).', 4500);
 }
 function navAction(d) {
   switch (d.action) {
@@ -284,7 +308,24 @@ function navAction(d) {
     case 'nignore': nv.ignore = true; navPaint(true); return true;
     case 'nrejoin': if (nv.st.nearest) { nv.ignore = false; navMap.setFollow(false); navMap.centerOn(nv.st.nearest.p[0], nv.st.nearest.p[1], 16.5); toast(`Le point du tracé le plus proche est à ${Math.round(nv.st.dev)} m${nv.st.pos ? ', vers le ' + Nav.compass(Nav.bearing(nv.st.pos, nv.st.nearest.p)) : ''}. Rejoins-le en suivant la ligne rouge.`, 6000); } return true;
     case 'nrecalc': navRecalc(); return true;
+    case 'nvoice': voiceSheet(); return true;
+    case 'vtest': speak('Dans deux cents mètres, rejoignez la remontée Signal.'); return true;
   }
   return profileAction(d);
 }
+/* ---------- Réglages de la voix ---------- */
+const getVoices = () => { try { return speechSynthesis.getVoices(); } catch { return []; } };
+function voiceSheet() {
+  const vs = Voice.list(getVoices(), navigator.onLine), cur = Voice.pick(getVoices(), S.voice.name, navigator.onLine), v = S.voice;
+  openSheet(`<h2>🔊 Guidage vocal</h2>
+    <label class="chk"><input type="checkbox" data-bind="audio" ${S.audio ? 'checked' : ''}> Activer le guidage vocal</label>
+    ${vs.length ? `<div class="mut" style="margin-top:6px">Voix</div><select class="f" id="vname">${vs.map(x => `<option value="${esc(x.name)}" ${cur && cur.name === x.name ? 'selected' : ''}>${esc(x.name)} · ${esc(x.lang)} · ${x.local ? 'fonctionne hors ligne' : 'demande une connexion'}</option>`).join('')}</select>`
+      : '<div class="warn">Aucune voix française trouvée sur cet appareil : le guidage vocal n\'est pas disponible ici (les instructions écrites restent affichées).</div>'}
+    <div class="mut" style="margin-top:10px">Débit : <b id="vratev">${v.rate.toFixed(2).replace('.', ',')}</b> (1 = normal)</div><input type="range" id="vrate" min="0.7" max="1.3" step="0.05" value="${v.rate}">
+    <div class="mut" style="margin-top:6px">Volume : <b id="vvolv">${Math.round(v.volume * 100)}</b> %</div><input type="range" id="vvol" min="0.2" max="1" step="0.1" value="${v.volume}">
+    <div style="height:10px"></div><button class="btn sec" data-action="vtest" ${vs.length ? '' : 'disabled'}>▶ Écouter un extrait</button>
+    <p class="mut" style="margin-top:10px">Annonces courtes, une seule fois : début de chaque étape, « Dans 200 mètres… » avant la fin d'une étape longue, sortie de parcours, perte et retour du GPS, arrivée. Rien n'est annoncé quand la position est trop imprécise.</p>
+    <p class="mut">La voix est celle de ton téléphone : gratuite, sans compte, <b>sans connexion si la voix est locale</b>. Pour une voix plus naturelle, installe une voix « améliorée » dans les réglages du téléphone (iPhone : Réglages → Accessibilité → Contenu énoncé → Voix ; Android : Réglages → Synthèse vocale). Une voix de service en ligne (qualité studio) demanderait un abonnement externe et une connexion : non utilisée.</p>`);
+}
+if (typeof speechSynthesis !== 'undefined') speechSynthesis.onvoiceschanged = () => { if (!$('#sheet').hidden && $('#vname')) voiceSheet(); };
 function afterRender() { if (S.tab === 'route') { mountPreview(); if (!offStat.checked) refreshOffStat(); } else if (pvMap) { pvMap.destroy(); pvMap = null; } }

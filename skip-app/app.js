@@ -9,7 +9,7 @@ const fmtMin = m => `${Math.floor(m / 60)}h${String(Math.round(m % 60)).padStart
 const COLORS = ['green', 'blue', 'red', 'black'], RANK = { green: 0, blue: 1, red: 2, black: 3 };
 
 const defaults = () => ({
-  station: 'alpe', tab: 'pistes', level: 5, levelSet: false, audio: true,
+  station: 'alpe', tab: 'pistes', level: 5, levelSet: false, audio: true, voice: { name: '', rate: 0.95, volume: 1 },
   profile: { pseudo: '', discipline: 'ski', wants: [], status: 'slopes', socials: {} },
   votes: {}, vlog: [], hearts: [], log: {}, route: null, chat: {}, screen: {}, friends: {},
   filt: { colors: [], q: '', sector: '', sort: 'color', fit: false, open: false, view: 'pistes', mine: false },
@@ -17,7 +17,7 @@ const defaults = () => ({
   rf: { start: '', end: '', budget: 120, speed: 'medium', mode: 'felt', lo: 2, hi: 3, colors: ['green', 'blue', 'red'], walk: true, variant: 0 }
 });
 let S = (() => { try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return defaults(); } })();
-S.notif = { ...defaults().notif, ...S.notif }; S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf };
+S.voice = { ...defaults().voice, ...S.voice }; S.notif = { ...defaults().notif, ...S.notif }; S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf };
 if (!S.levelSet && S.level !== 5) S.levelSet = true;   // un niveau déjà modifié par l'utilisateur compte comme renseigné
 if (S.votes && Object.keys(S.votes).length) { Object.entries(S.votes).forEach(([id, sc]) => S.vlog.push({ id, s: sc, t: Date.now(), tags: [] })); S.votes = {}; }   // ancien format
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* stockage indisponible */ } };
@@ -84,9 +84,7 @@ function toast(msg, ms = 3200) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms);
 }
 function speak(text) {
-  if (S.audio && 'speechSynthesis' in window) {
-    try { const u = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch { /* ignore */ }
-  }
+  if (S.audio) Voice.say(text, S.voice, 'speechSynthesis' in window ? speechSynthesis.getVoices() : [], navigator.onLine);
   if (navigator.vibrate) navigator.vibrate(80);
 }
 function openSheet(html) {
@@ -1025,6 +1023,8 @@ document.addEventListener('input', e => {
   else if (t.dataset.range === 'level') { S.level = +t.value; S.levelSet = true; $('#lvl').textContent = t.value; save(); updateList(); }
   else if (t.dataset.range === 'level2') { S.level = +t.value; S.levelSet = true; save(); }
   else if (t.dataset.range === 'plevel') { $('#plv').textContent = t.value; }
+  else if (t.id === 'vrate') { S.voice.rate = +t.value; $('#vratev').textContent = (+t.value).toFixed(2).replace('.', ','); save(); }
+  else if (t.id === 'vvol') { S.voice.volume = +t.value; $('#vvolv').textContent = Math.round(t.value * 100); save(); }
 });
 document.addEventListener('change', e => {
   const t = e.target, b = t.dataset.bind;
@@ -1034,7 +1034,7 @@ document.addEventListener('change', e => {
   else if (b === 'rend') { S.rf.end = t.value; save(); }
   else if (b === 'rwalk') { S.rf.walk = t.checked; save(); }
   else if (b === 'ptmpwalk') { (S.rf.tmp = S.rf.tmp || {}).walk = t.checked ? true : undefined; if (!t.checked) delete S.rf.tmp.walk; save(); render(); }
-  else if (b === 'pvnet') { showNet = t.checked; pvMap && pvMap.setNetwork(netEdges(), showNet); }
+  else if (b === 'pvnet') { showNet = t.checked; pvMap && pvMap.showDomain(showNet); }
   else if (b === 'audio') { S.audio = t.checked; save(); }
   else if (b === 'nenabled') { if (t.checked) enableNotif(); else { S.notif.enabled = false; save(); render(); } }
   else if (b === 'nlift') { S.notif.lift = t.checked; save(); }
@@ -1042,6 +1042,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'neve') { S.notif.eveningTime = t.value || '17:30'; S.pro.evening = false; save(); }
   else if (t.id === 'nmax') { S.notif.max = +t.value; save(); }
   else if (t.id === 'wmargin') { S.waitMargin = +t.value; save(); }
+  else if (t.id === 'vname') { S.voice.name = t.value; save(); }
   else if (t.id === 'qother' && t.value) { rateCtx.id = t.value; rateCtx.k = null; rateCtx.correcting = false; rateSheet(); }
   else if (t.id === 'pseudo') { S.profile.pseudo = t.value.trim().slice(0, 30); save(); }
   else if (t.dataset.range === 'level2') { render(); }

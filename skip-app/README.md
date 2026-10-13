@@ -63,3 +63,9 @@ Les prévisions viennent de l'API publique MET Norway (`api.met.no`, autorise la
 - **Hors ligne** (`offline.js`, `shell.js`, `sw.js`) : « Télécharger pour une utilisation hors ligne » garde le tracé, les consignes, l'application et le fond de carte ; progression, date, état élément par élément, échec explicité. Le recalcul fonctionne hors ligne (le planificateur est dans l'appli).
 - **Profil personnel** : option de filtre qui n'utilise que le niveau, les envies et la discipline du profil ; les ajustements « pour ce trajet » ne modifient jamais le profil sans « Enregistrer ».
 - Tests : `node --test test/engine.test.js test/nav.test.js`, `node test/e2e.js`, `node test/e2e-nav.js` (Playwright ; la position GPS y est simulée).
+
+### Mise à jour : repérage, voix et suivi (voir SOURCES.md pour le détail)
+- Carte : réseau du domaine dessiné d'après `graph.js` (pistes en couleur officielle, remontées en tirets, stations, liaisons, chemins), noms affichés selon le zoom, en retrait sous l'itinéraire.
+- Suivi : position mesurée (jamais recalée), progression et validation d'étape séparées, « Près de : piste X » ou liste des pistes proches quand c'est ambigu.
+- Voix : réglages (voix, débit, volume, extrait), annonces courtes sans répétition (`voice.js`, `test/voice.test.js`).
+- Hors ligne : taille annoncée (≈ 5,9 Mo), tableau « point par point » de ce qui marche sans réseau.

@@ -51,7 +51,7 @@ input[type=range]{width:100%;accent-color:var(--brand)}
 .heart.on{background:#ffe3ea;border-color:#ff7a9c;color:#c2185b;font-weight:700}
 .data{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
 .data div{background:var(--bg);border-radius:10px;padding:8px 10px;font-size:13px}.data b{display:block;font-size:15px}
-.sheet{position:fixed;inset:0;z-index:40;background:rgba(10,20,40,.5);display:flex;align-items:flex-end}
+.sheet{position:fixed;inset:0;z-index:56;background:rgba(10,20,40,.5);display:flex;align-items:flex-end}
 .sheet[hidden],.pocket[hidden],.toast[hidden],[hidden]{display:none!important}
 .sheet .in{background:var(--bg);width:100%;max-width:640px;margin:0 auto;border-radius:22px 22px 0 0;max-height:92vh;overflow:auto;padding:16px 16px calc(20px + env(safe-area-inset-bottom))}
 .x{float:right;background:var(--card);border:1px solid var(--line);border-radius:50%;width:34px;height:34px}

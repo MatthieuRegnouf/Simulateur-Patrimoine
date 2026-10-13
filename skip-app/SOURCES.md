@@ -41,3 +41,29 @@ Les identifiants de remontées sont ceux de `data.js`. L'appli affiche alors « 
 - **Position** : API de géolocalisation du navigateur (GPS du téléphone, utilisable sans réseau). Aucune donnée de position n'est envoyée nulle part.
 - **Ce qui est « direct » ou non** : hors ligne, ouverture et météo sont des instantanés datés, jamais présentés comme du direct ; les attentes sont des estimations.
 - **Limites connues** : tracés OpenStreetMap simplifiés à 6 m (graph.js) ; 98/111 pistes et 59/65 remontées ont un tracé ; liaisons parfois approximatives ; un recalcul hors ligne exige d'être à moins de 150 m d'un point connu du réseau et utilise les fermetures enregistrées au téléchargement.
+
+## Diagnostic des données cartographiques (mesuré sur `graph.js`, instantané OpenStreetMap du 31/05/2026)
+
+| Élément | Source | Nature du tracé |
+|---|---|---|
+| Pistes (1039 tronçons, dont 497 rapprochés d'une piste officielle) | OpenStreetMap (`piste:type=downhill`) | **Réels** : polylignes OSM simplifiées à 6 m ; longueur du tracé = longueur annoncée à 0,3 % près (médiane), 8 % au pire |
+| Remontées (92 tronçons, 65 rapprochés d'une remontée officielle) | OpenStreetMap (`aerialway=*`) | **Réels**, mais presque rectilignes (82 sur 92 n'ont que 2 points : une remontée est une ligne droite entre deux gares) |
+| Liaisons (69) | OpenStreetMap (`piste:type=connection`) et raccords déduits de la proximité | **Courtes** (médiane 19 m, max 81 m), souvent rectilignes ; à considérer comme **estimées** |
+| Chemins à pied (106) | OpenStreetMap | Réels |
+| Noms, couleurs officielles, durées des remontées | Flux officiel ATEN (Espace Alpe d'Huez) | Pas de géométrie |
+| Altitudes des jonctions | EU-DEM 25 m (OpenTopoData) | Précision de l'ordre de la maille (25 m) |
+
+- Le calcul d'itinéraire **suit ces tracés** (graphe de tronçons) ; il ne relie jamais deux points par une ligne droite, sauf pour une remontée (réellement rectiligne) et les petites liaisons ci-dessus.
+- Couverture : 98 pistes sur 111 et 59 remontées sur 65 ont un tracé. Les autres (Champclotury, Allouettes, Rif Nel, stades débutants, etc.) sont **absentes de la carte et du calcul** : aucun tracé n'est inventé pour elles.
+- Le lien openstreetmap.org fourni est une page de consultation : il n'offre pas de réseau téléchargeable en soi. Les **données** OpenStreetMap sont réutilisables (licence ODbL, mention obligatoire) via Overpass/Protomaps, ce que fait l'appli ; les **tuiles** du site, elles, ne peuvent pas être stockées pour un usage hors ligne.
+- Positions des départs/arrivées et intersections : ce sont les nœuds partagés d'OpenStreetMap ; leur justesse est celle de la contribution OSM (non vérifiée sur le terrain).
+
+## Géolocalisation : paramètres et limites
+- API du navigateur (`watchPosition`, haute précision, `maximumAge` 1 s, délai 20 s). La fréquence d'actualisation est décidée par l'appareil (en général ≈ 1 Hz au GPS) ; la précision annoncée (± m) est affichée telle quelle.
+- **Seuils** : bonne ≤ 25 m, moyenne ≤ 50 m, au-delà « imprécise » (aucune progression ni sortie de parcours déclarée) ; signal « ancien » après 20 s sans point (position grisée et datée) ; sortie de parcours après 3 points hors couloir (max(40 m, 2 × précision)) sur au moins 8 s.
+- **Le marqueur est la position mesurée**, jamais recalée. La progression est calculée à part (projection sur le tracé, fenêtre vers l'avant), et la correction manuelle d'étape est un troisième mécanisme, sans effet sur le marqueur. Quand plusieurs pistes sont dans la marge d'erreur, l'appli les liste sans choisir.
+- **Arrière-plan / écran éteint** : une page web ne peut pas suivre la position de façon fiable en arrière-plan. L'appli garde l'écran allumé (Wake Lock, consomme de la batterie) et prévient si elle a été suspendue.
+- **Internet n'est pas nécessaire au GPS** : la carte (fichier local) et la position (récepteur du téléphone) sont indépendantes ; hors réseau le premier point peut seulement être plus lent.
+
+## Voix
+- Synthèse vocale du téléphone (Web Speech API) : choix de la voix française, débit, volume, extrait, désactivation. Une voix « locale » fonctionne hors ligne ; une voix « en ligne » exige une connexion. La naturalité dépend des voix installées sur l'appareil ; une voix de service externe (qualité studio) serait payante et en ligne : non utilisée.

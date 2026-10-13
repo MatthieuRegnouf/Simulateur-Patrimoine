@@ -49,7 +49,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       // recalcul impossible loin du réseau
       await p.click('[data-action=nrecalc]'); await p.waitForTimeout(300); assert.match(await p.textContent('#toast'), /Pas de recalcul possible/); ok('recalcul refusé quand aucun point connu à moins de 150 m (aucun itinéraire inventé)');
       // suivi manuel
-      await p.click('[data-action=nnext]'); assert.equal(await p.evaluate(() => nv.st.step), 2); await p.click('[data-action=nprev]'); assert.equal(await p.evaluate(() => nv.st.step), 1); ok('boutons étape précédente / suivante');
+      assert.equal(await p.$('#nbot .nbtn [data-action=nnext]'), null, 'boutons manuels absents quand le GPS fonctionne');
+      await p.click('[data-action=nlist]'); const mk0 = await p.evaluate(() => JSON.stringify(navMap.pos));
+      await p.click('#nbot .mut [data-action=nnext]'); assert.equal(await p.evaluate(() => nv.st.step), 2); await p.click('#nbot .mut [data-action=nprev]'); assert.equal(await p.evaluate(() => nv.st.step), 1);
+      assert.equal(await p.evaluate(() => JSON.stringify(navMap.pos)), mk0); ok('correction manuelle d\'étape (dans le détail) : le marqueur, lui, ne bouge pas : position mesurée, progression et validation sont séparées');
       await p.click('[data-action=nquit]'); assert.equal(await p.evaluate(() => nv), null); ok('quitter la navigation libère la localisation');
       await ctx.close();
     }
@@ -126,6 +129,32 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       // snowboard : pas de chemin à pied par défaut, réactivable pour le trajet
       await p.evaluate(() => { S.profile.discipline = 'snowboard'; S.rf.tmp = {}; save(); render(); }); assert.equal(await p.evaluate(() => effectiveForm().walk), false);
       await p.evaluate(() => { S.rf.tmp = { walk: true }; }); assert.equal(await p.evaluate(() => effectiveForm().walk), true); ok('snowboard : chemins à pied évités, réactivables pour le trajet');
+      await ctx.close();
+    }
+    /* ---- 7. voix, position mesurée, « près de », étiquettes ---- */
+    {
+      const { ctx, p } = await open(GEO, async pg => pg.addInitScript(() => { window.__said = []; const v = [{ name: 'Thomas', lang: 'fr-FR', localService: true }, { name: 'Voix Anglaise', lang: 'en-US', localService: true }];
+        window.SpeechSynthesisUtterance = function (t) { this.text = t; }; Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { getVoices: () => v, speak: u => window.__said.push({ t: u.text, rate: u.rate, vol: u.volume, voice: u.voice && u.voice.name }), cancel() {} } }); }));
+      await plan(p); await p.click('.btn.gps'); await p.waitForTimeout(800);
+      await p.click('[data-action=nvoice]'); assert.match(await p.textContent('#sheet'), /Thomas/); assert.ok(!/Voix Anglaise/.test(await p.textContent('#sheet'))); ok('réglages de voix : seules les voix françaises sont proposées, avec leur mode (hors ligne / connexion)');
+      await p.$eval('#vrate', e => { e.value = 1.1; e.dispatchEvent(new Event('input', { bubbles: true })); }); await p.click('[data-action=vtest]');
+      let said = await p.evaluate(() => window.__said); assert.ok(said.length && said[0].voice === 'Thomas' && Math.abs(said[0].rate - 1.1) < 1e-9); ok('extrait vocal : voix choisie, débit réglé');
+      await p.click('[data-action=close]');
+      const pt = await pointOn(p, 1, .1); await ctx.setGeolocation({ latitude: pt[0], longitude: pt[1], accuracy: 8 }); await p.waitForTimeout(2500);
+      said = await p.evaluate(() => window.__said.map(s => s.t)); assert.ok(said.some(t => /Prenez la piste/.test(t)), JSON.stringify(said)); ok('annonce vocale courte à l\'entrée de l\'étape réelle : ' + said[said.length - 1]);
+      const n1 = said.length; await p.waitForTimeout(2500); assert.equal(await p.evaluate(() => window.__said.length), n1); ok('pas de répétition');
+      const R = await p.evaluate(() => nv.st.route.ranges[1]), at = s => p.evaluate(s => { const R = nv.st.route; const j = R.pts.findIndex(q => q.s >= s); return R.pts[j].p; }, s);
+      for (const s of [R.s0 + 400, R.s0 + 800, R.s0 + 1150, R.s1 - 150]) { const q = await at(s); await ctx.setGeolocation({ latitude: q[0], longitude: q[1], accuracy: 8 }); await p.waitForTimeout(1500); }   // on avance par paliers réalistes, comme un skieur
+      said = await p.evaluate(() => window.__said.map(s => s.t)); assert.ok(said.some(t => /^Dans \d+ mètres/.test(t)), JSON.stringify(said)); ok('annonce d\'approche « Dans N mètres… » avant la fin de l\'étape : ' + said.find(t => /^Dans \d+/.test(t)));
+      await p.evaluate(() => { S.audio = false; }); const nb = (await p.evaluate(() => window.__said.length)); const nx = await at(R.s1 - 60); await ctx.setGeolocation({ latitude: nx[0], longitude: nx[1], accuracy: 8 }); await p.waitForTimeout(2500);
+      assert.equal(await p.evaluate(() => window.__said.length), nb); ok('guidage vocal désactivé : silence');
+      assert.match(await p.textContent('#ntop'), /Près de|Plusieurs pistes/); ok('« Près de… » / ambiguïté signalée à partir de la position mesurée (sans recalage)');
+      // marqueur = position mesurée exacte
+      const m = await p.evaluate(() => ({ pos: navMap.pos, fix: [nv.st.fix.lat, nv.st.fix.lng] })); assert.deepEqual(m.pos, m.fix); ok('le marqueur est exactement la position mesurée (jamais recalé sur le tracé)');
+      // ancienne position : grise et datée, pas présentée comme actuelle
+      await p.evaluate(() => { nv.st.fix.t -= 60000; }); await p.waitForTimeout(1400); assert.equal(await p.evaluate(() => navMap.posQ), 'stale'); assert.match(await p.textContent('#ntop'), /Pas de nouvelle position/); ok('signal perdu : ancienne position grisée et datée');
+      // couche du domaine : noms des pistes et remontées présents dans les données dessinées
+      const d = await p.evaluate(() => { const D = domain(); return { named: D.edges.filter(e => e.k === 'piste' && e.o && e.n).length, lifts: D.edges.filter(e => e.k === 'lift' && e.n).length, stations: D.stations.length }; }); assert.ok(d.named > 100 && d.lifts > 40 && d.stations > 40, JSON.stringify(d)); ok(`couche domaine : ${d.named} tronçons de pistes officielles nommés, ${d.lifts} remontées nommées, ${d.stations} stations`);
       await ctx.close();
     }
     assert.deepEqual(errs, [], errs.join('\n')); ok('aucune erreur JavaScript');

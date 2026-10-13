@@ -103,8 +103,28 @@ const SkiMap = (() => {
           }
         }
       }
-      if (M.net && M.netEdges && z >= 13.5) {   // autres pistes : désactivées par défaut, très discrètes quand on les demande
-        g.lineWidth = 1.4; M.netEdges.forEach(e => { g.strokeStyle = e.k === 'piste' ? PCOL[e.c] || '#888' : '#8a96ad'; g.globalAlpha = .38; g.beginPath(); e.g.forEach((p, i) => { const q = P(p[0], p[1]); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); }); g.stroke(); }); g.globalAlpha = 1;
+      /* Réseau du domaine (tracés OpenStreetMap + couleurs officielles) : le détail dépend du zoom ; sous un itinéraire il passe en retrait pour que le parcours reste le premier plan */
+      const dl = [];
+      if (M.net && M.dom && z >= 12.5) {
+        const dim = M.route ? .42 : .9, W = z < 14 ? 1.6 : z < 15 ? 2.4 : 3.2, seen = new Map();
+        g.lineCap = g.lineJoin = 'round';
+        const inView = e => { for (const p of e.g) { const x = (wx(p[0], p[1], z)[0] - left), y = (wx(p[0], p[1], z)[1] - top); if (x > -40 && y > -40 && x < M.w + 40 && y < M.h + 40) return true; } return false; };
+        const vis = M.dom.edges.filter(e => (e.k !== 'link' && e.k !== 'walk' || z >= 15) && inView(e));
+        const stroke = e => { g.beginPath(); e.g.forEach((p, i) => { const q = P(p[0], p[1]); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); }); g.stroke(); };
+        g.setLineDash([]);
+        vis.filter(e => e.k === 'piste').forEach(e => { g.strokeStyle = PCOL[e.c] || '#8c93a3'; g.lineWidth = e.o ? W : W * .6; g.globalAlpha = e.o ? dim : dim * .55; stroke(e); });
+        g.setLineDash([2, 4]); vis.filter(e => e.k === 'walk').forEach(e => { g.strokeStyle = WALK; g.lineWidth = 1.4; g.globalAlpha = dim; stroke(e); });
+        g.setLineDash([5, 3]); vis.filter(e => e.k === 'link').forEach(e => { g.strokeStyle = LINK; g.lineWidth = 1.6; g.globalAlpha = dim; stroke(e); });
+        g.setLineDash([8, 5]); vis.filter(e => e.k === 'lift').forEach(e => { g.strokeStyle = LIFT; g.lineWidth = Math.max(1.8, W * .8); g.globalAlpha = Math.min(1, dim + .15); stroke(e); });
+        g.setLineDash([]); g.globalAlpha = 1;
+        // noms : un seul par piste / remontée (le tronçon le plus visible), seulement à partir d'un certain zoom
+        if (z >= 14.2) vis.filter(e => e.n && (e.k === 'lift' || (e.k === 'piste' && e.o))).forEach(e => {
+          let len = 0, pr = null; e.g.forEach(p => { const q = P(p[0], p[1]); if (pr) len += Math.hypot(q[0] - pr[0], q[1] - pr[1]); pr = q; });
+          const key = e.k + e.n; if (!seen.has(key) || seen.get(key).len < len) seen.set(key, { e, len });
+        });
+        seen.forEach(({ e, len }) => { if (len < 40) return; let acc = 0, mid = null, pr = null; e.g.forEach(p => { const q = P(p[0], p[1]); if (pr && !mid) { acc += Math.hypot(q[0] - pr[0], q[1] - pr[1]); if (acc >= len / 2) mid = q; } pr = q; });
+          if (mid) dl.push({ n: e.n, sx: mid[0], sy: mid[1], t: e.k === 'lift' ? 'dlift' : 'dpiste', col: e.k === 'piste' ? PCOL[e.c] : LIFT, italic: e.k === 'lift' }); });
+        if (z >= 15) (M.dom.stations || []).forEach(s => { const q = P(s.lat, s.lng); if (q[0] > -20 && q[1] > -20 && q[0] < M.w + 20 && q[1] < M.h + 20) { g.fillStyle = '#fff'; g.strokeStyle = LIFT; g.lineWidth = 2; g.beginPath(); g.arc(q[0], q[1], 4, 0, 7); g.fill(); g.stroke(); dl.push({ n: s.n, sx: q[0] + 7, sy: q[1] + 9, t: 'dstation', left: 1, col: LIFT }); } });
       }
       const R = M.route, plan = M.plan; const names = [];
       if (R && plan) {
@@ -157,7 +177,7 @@ const SkiMap = (() => {
         // départ / arrivée
         const f = R.pts[0].p, e = R.pts[R.pts.length - 1].p, same = Math.abs(f[0] - e[0]) + Math.abs(f[1] - e[1]) < 0.0004;
         const flag = (p, t, c, dy) => { const q = P(p[0], p[1]); g.fillStyle = c; g.beginPath(); g.arc(q[0], q[1], 6.5, 0, 7); g.fill(); g.lineWidth = 2.5; g.strokeStyle = '#fff'; g.stroke(); labels.push({ n: t, sx: q[0] + 10, sy: q[1] + dy, t: 'flag', bold: 1, left: 1 }); };
-        if (same) flag(f, 'Départ · arrivée', '#0b5fff', -10); else { flag(f, 'Départ', '#1fb04a', -10); flag(e, 'Arrivée', '#0b5fff', 14); }
+        if (same) flag(f, 'Départ · arrivée', '#7b3fe4', -10); else { flag(f, 'Départ', '#1fb04a', -10); flag(e, 'Arrivée', '#12213a', 14); }
         if (M.near && M.near.p) {   // point du tracé le plus proche, quand on est hors parcours
           const a = M.pos ? P(M.pos[0], M.pos[1]) : null, q = P(M.near.p[0], M.near.p[1]);
           if (a) { g.setLineDash([5, 5]); g.strokeStyle = '#d0021b'; g.lineWidth = 2; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(q[0], q[1]); g.stroke(); g.setLineDash([]); }
@@ -167,14 +187,14 @@ const SkiMap = (() => {
       // étiquettes : une seule passe, avec évitement des chevauchements. Priorité : étiquettes de l'itinéraire, puis lieux, puis points d'intérêt.
       if (M.labels) {
         const placed = [], fits = (x, y, w, h) => { for (const r of placed) if (x < r[0] + r[2] && x + w > r[0] && y < r[1] + r[3] && y + h > r[1]) return false; return true; };
-        const all = [...names.sort((a, b) => a.pri - b.pri).map(l => ({ ...l, t: 'route', sx: l.x + 12, sy: l.y - 12, left: 1, bold: 1 })), ...labels.filter(l => l.t === 'flag'), ...labels.filter(l => l.t === 'place' && z >= l.z - 0.2).sort((a, b) => a.z - b.z), ...labels.filter(l => l.t === 'poi' && z >= l.z)];
+        const all = [...names.sort((a, b) => a.pri - b.pri).map(l => ({ ...l, t: 'route', sx: l.x + 12, sy: l.y - 12, left: 1, bold: 1 })), ...labels.filter(l => l.t === 'flag'), ...dl.filter(l => l.t === 'dlift'), ...dl.filter(l => l.t === 'dpiste'), ...dl.filter(l => l.t === 'dstation'), ...labels.filter(l => l.t === 'place' && z >= l.z - 0.2).sort((a, b) => a.z - b.z), ...labels.filter(l => l.t === 'poi' && z >= l.z)];
         all.forEach(l => {
           if (l.sx < -50 || l.sy < -20 || l.sx > M.w + 50 || l.sy > M.h + 20) return;
-          g.font = `${l.bold ? 800 : l.t === 'place' ? 700 : 500} ${l.t === 'place' ? 13 : 11.5}px system-ui,sans-serif`; g.textBaseline = 'middle';
+          g.font = `${l.italic ? 'italic ' : ''}${l.bold ? 800 : l.t === 'place' ? 700 : 600} ${l.t === 'place' ? 13 : 11.5}px system-ui,sans-serif`; g.textBaseline = 'middle';
           const w = g.measureText(l.n).width, x = l.left ? l.sx : l.sx - w / 2, y = l.sy;
           if (l.t !== 'flag' && !fits(x - 2, y - 8, w + 4, 16)) return; placed.push([x - 2, y - 8, w + 4, 16]);
           g.textAlign = 'left'; g.lineWidth = 3.5; g.strokeStyle = 'rgba(255,255,255,.92)'; g.strokeText(l.n, x, y);
-          g.fillStyle = l.t === 'route' || l.t === 'flag' ? '#12213a' : l.t === 'place' ? '#3a4660' : '#5a6580'; g.fillText(l.n, x, y);
+          g.fillStyle = l.col && l.t[0] === 'd' ? (l.col === PCOL.green ? '#12803a' : l.col) : l.t === 'route' || l.t === 'flag' ? '#12213a' : l.t === 'place' ? '#3a4660' : '#5a6580'; g.fillText(l.n, x, y);
         });
       }
       // position de l'utilisateur : jamais plus nette que ce que le GPS sait
@@ -183,6 +203,7 @@ const SkiMap = (() => {
         if (rpx > 4) { g.fillStyle = ok ? 'rgba(11,95,255,.14)' : 'rgba(150,150,150,.18)'; g.strokeStyle = ok ? 'rgba(11,95,255,.5)' : 'rgba(110,110,110,.6)'; g.lineWidth = 1.2; g.setLineDash(ok ? [] : [4, 3]); g.beginPath(); g.arc(q[0], q[1], rpx, 0, 7); g.fill(); g.stroke(); g.setLineDash([]); }
         if (M.heading != null && ok) { g.save(); g.translate(q[0], q[1]); g.rotate(M.heading * Math.PI / 180); g.fillStyle = 'rgba(11,95,255,.9)'; g.beginPath(); g.moveTo(0, -17); g.lineTo(6, -8); g.lineTo(-6, -8); g.closePath(); g.fill(); g.restore(); }
         g.fillStyle = ok ? '#0b5fff' : '#8a8f9c'; g.beginPath(); g.arc(q[0], q[1], 8, 0, 7); g.fill(); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke();
+        if (M.posQ === 'stale') { const t = `dernière position · il y a ${Math.round((Date.now() - M.fixT) / 1000)} s`; g.font = '700 11px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.lineWidth = 3.5; g.strokeStyle = 'rgba(255,255,255,.95)'; g.strokeText(t, q[0], q[1] - 14); g.fillStyle = '#5a6070'; g.fillText(t, q[0], q[1] - 14); }
       }
       // échelle + mention de licence (obligatoire pour les données OpenStreetMap)
       const mp = mpp(M.lat, z), nice = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]; let m = nice[0]; for (const v of nice) if (v / mp < 110) m = v;
@@ -223,10 +244,11 @@ const SkiMap = (() => {
     /* ---- API ---- */
     Object.assign(M, {
       setBase(pm) { M.pm = pm; M.noBase = !pm; cache.clear(); bad.clear(); M.tileErr = 0; ask(); },
-      setNetwork(edges, on) { M.netEdges = edges; M.net = !!on; ask(); },
+      setDomain(dom, on) { M.dom = dom; M.net = !!on; ask(); },
+      showDomain(on) { M.net = !!on; ask(); },
       setRoute(plan, route) { M.plan = plan; M.route = route; M.s = 0; M.hi = null; bounds = null; ask(); },
       setProgress(s) { M.s = s; ask(); },
-      setPosition(fix, q, near) { M.pos = fix ? [fix.lat, fix.lng] : null; M.accM = fix ? fix.acc : 0; M.heading = fix && fix.heading != null && !isNaN(fix.heading) && (fix.speed || 0) > 1 ? fix.heading : null; M.posQ = q; M.near = near || null;
+      setPosition(fix, q, near) { M.pos = fix ? [fix.lat, fix.lng] : null; M.accM = fix ? fix.acc : 0; M.heading = fix && fix.heading != null && !isNaN(fix.heading) && (fix.speed || 0) > 1 ? fix.heading : null; M.posQ = q; M.near = near || null; M.fixT = fix ? fix.t : 0;
         if (M.follow && M.pos) { M.lat = M.pos[0]; M.lng = M.pos[1]; } ask(); },
       highlight(i, fitIt) { M.hi = i; if (i != null && fitIt) M.fit(i); ask(); },
       fit(i) { // cadre une étape (ou tout le tracé), en laissant de la marge pour les bandeaux

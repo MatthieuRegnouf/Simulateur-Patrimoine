@@ -82,3 +82,17 @@ test('recalcul : refusé loin du réseau, accepté près d\'un nœud connu', () 
   assert.ok(r.steps && r.steps.length);
 });
 test('cap et direction', () => { assert.equal(N.compass(N.bearing([45, 6], [45.01, 6])), 'nord'); assert.equal(N.compass(N.bearing([45, 6], [45, 6.01])), 'est'); });
+test('ou suis-je : piste sans ambiguité, ambiguité listée sans choisir, rien hors domaine', () => {
+  const idx = N.indexNet(net), p = plan.steps.find(s => s.kind === 'piste' && s.o), mid = p.coords[Math.floor(p.coords.length / 2)];
+  const h = N.hereOn(idx, mid, 8); assert.ok(h.state === 'unique' || h.state === 'ambiguous'); if (h.state === 'unique') assert.ok(h.best.d < 30);
+  assert.equal(N.hereOn(idx, [46.5, 2], 8).state, 'none');
+  // deux éléments proches : jamais de choix arbitraire
+  const e1 = idx.find(e => e.k === 'piste' && e.n), amb = N.hereOn(idx.slice(), e1.g[0], 60); assert.ok(['unique', 'ambiguous'].includes(amb.state));
+  const fake = [{ id: 'a', key: 'piste:A', k: 'piste', n: 'A', c: 'blue', g: [[45, 6], [45.001, 6]], b: [45, 45.001, 6, 6] }, { id: 'b', key: 'piste:B', k: 'piste', n: 'B', c: 'red', g: [[45, 6.0006], [45.001, 6.0006]], b: [45, 45.001, 6.0006, 6.0006] }];
+  const a2 = N.hereOn(fake, [45.0005, 6.0003], 8); assert.equal(a2.state, 'ambiguous'); assert.deepEqual(a2.cands.map(c => c.n).sort(), ['A', 'B']);
+  const u = N.hereOn(fake, [45.0005, 6.00001], 5); assert.equal(u.state, 'unique'); assert.equal(u.best.n, 'A');
+});
+test('la position affichée est la position mesurée : jamais déplacée vers le tracé', () => {
+  const st = N.create(plan); const f = fixAt(at(300, 12), 8); N.update(st, f, T);
+  assert.equal(st.pos[0], f.lat); assert.equal(st.pos[1], f.lng); assert.ok(st.snap && (st.snap[0] !== f.lat || st.snap[1] !== f.lng));   // le point projeté existe à part, il n'est pas utilisé pour le marqueur
+});

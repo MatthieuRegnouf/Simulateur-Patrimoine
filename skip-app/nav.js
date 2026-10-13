@@ -59,7 +59,7 @@ const Nav = (() => {
   }
   const corridor = acc => Math.max(40, 2 * (acc || 0));
 
-  const create = plan => ({ route: build(plan), s: 0, step: 0, started: false, offCount: 0, offSince: 0, off: false, fix: null, geo: 'idle', msg: '' });
+  const create = (plan, index) => ({ index: index || null, route: build(plan), s: 0, step: 0, t0: Date.now(), started: false, offCount: 0, offSince: 0, off: false, fix: null, geo: 'idle', msg: '' });
 
   /* Fait avancer l'état avec un point GPS ; renvoie l'état (muté). geo : idle | denied | unavailable | timeout | ok */
   function update(st, fix, now = Date.now()) {
@@ -71,7 +71,7 @@ const Nav = (() => {
     const w = st.started ? best(st.route, pos, st.s - BACK_M, st.s + AHEAD_M) : best(st.route, pos, 0, st.route.total);
     const g = w && w.d <= cor ? null : best(st.route, pos, 0, st.route.total);   // meilleur point global, pour dire où l'on est par rapport au tracé
     const onWindow = w && w.d <= cor;
-    st.pos = pos; st.nearest = g || w;
+    st.pos = pos; st.nearest = g || w; st.here = st.index && (q === 'good' || q === 'fair') ? hereOn(st.index, pos, acc) : null;
     if (q === 'poor') {   // trop imprécis : on ne déclare ni progression ni sortie de parcours
       st.off = false; st.offCount = 0; st.offSince = 0; st.onRoute = null; return st;
     }
@@ -95,6 +95,28 @@ const Nav = (() => {
   const atEnd = st => st.started && remaining(st) < 25;
 
 
+
+  /* ---------- Où suis-je sur le domaine ? ----------
+     On ne « colle » jamais le skieur sur une piste : la position reste celle mesurée. On indique seulement, à titre d'information, de quelle piste ou remontée elle est proche,
+     et seulement quand c'est sans ambiguïté. Quand plusieurs pistes sont dans la marge d'erreur du GPS, on les liste sans choisir. */
+  function indexNet(net) {
+    return net.edges.filter(e => e.k === 'piste' || e.k === 'lift').map(e => { const g = net.geom(e); let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; g.forEach(p => { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); });
+      return { id: e.id, key: e.k + ':' + (e.n || e.id), k: e.k, n: e.n || '', c: e.c || null, o: e.o || null, g, b: [la0, la1, lo0, lo1] }; });
+  }
+  function hereOn(index, pos, acc) {
+    const cor = Math.max(30, 1.5 * (acc || 0)), pad = cor / 111320 * 1.2, padLo = pad / Math.cos(pos[0] * RAD), per = new Map();
+    for (const e of index) {
+      if (pos[0] < e.b[0] - pad || pos[0] > e.b[1] + pad || pos[1] < e.b[2] - padLo || pos[1] > e.b[3] + padLo) continue;
+      let d = Infinity; for (let j = 0; j < e.g.length - 1; j++) d = Math.min(d, proj(pos, e.g[j], e.g[j + 1]).d);
+      if (d <= cor && (!per.has(e.key) || per.get(e.key).d > d)) per.set(e.key, { key: e.key, k: e.k, n: e.n, c: e.c, o: e.o, d });
+    }
+    const c = [...per.values()].sort((a, b) => a.d - b.d);
+    if (!c.length) return { state: 'none', cor };
+    const named = c.filter(x => x.n), top = c[0];
+    if (c.length === 1 || c[1].d - top.d >= 25) return { state: 'unique', best: top, cor };
+    return { state: 'ambiguous', cands: c.slice(0, 4), cor };
+  }
+
   /* Remet la progression sur le début d'une étape (suivi manuel, ou correction par l'utilisateur) */
   function jump(st, i) { const r = st.route.ranges[Math.max(0, Math.min(i, st.route.ranges.length - 1))]; st.s = r.s0; st.step = st.route.ranges.indexOf(r); st.started = true; st.off = false; st.offCount = 0; st.offSince = 0; return st; }
   /* Cap (0 = nord) et direction en mots, de a vers b ([lat,lng]) */
@@ -110,7 +132,7 @@ const Nav = (() => {
   function statusText(st, now = Date.now()) {
     if (st.geo === 'denied') return { key: 'denied', text: 'Localisation refusée. Autorise-la dans les réglages du navigateur, ou suis les étapes à la main.' };
     if (st.geo === 'unavailable') return { key: 'unavailable', text: 'Localisation indisponible sur cet appareil. Suis les étapes à la main.' };
-    if (!st.fix) return { key: 'wait', text: st.geo === 'timeout' ? 'Position introuvable pour l\'instant (signal faible ou localisation coupée).' : 'Recherche de ta position…' };
+    if (!st.fix) { const w = Math.round((now - (st.t0 || now)) / 1000); return { key: 'wait', text: st.geo === 'timeout' || w > 25 ? `Position introuvable depuis ${w} s : signal faible ou localisation coupée. Passe à l'air libre et vérifie que la localisation est activée.` : `Recherche de ta position… ${w} s (la première position peut demander quelques dizaines de secondes).` }; }
     const q = quality(st.fix, now);
     if (q === 'stale') return { key: 'stale', text: `Pas de nouvelle position depuis ${Math.round((now - st.fix.t) / 1000)} s (signal interrompu, ou tu es immobile). La progression affichée peut être dépassée.` };
     if (q === 'poor') return { key: 'poor', text: `Position imprécise (± ${Math.round(st.fix.acc)} m) : on ne suit pas la progression tant qu'elle n'est pas meilleure.` };
@@ -143,6 +165,6 @@ const Nav = (() => {
     return { lo, hi, speed, walk, used, ignored, missing, level, wants };
   }
 
-  return { dist, build, proj, best, quality, corridor, create, update, tick, jump, bearing, compass, recalcStart, remaining, stepRemaining, atEnd, statusText, profileCriteria, WANTS, GOOD_M, FAIR_M, STALE_MS, OFF_FIXES, OFF_MS };
+  return { dist, build, proj, best, quality, corridor, create, update, tick, indexNet, hereOn, jump, bearing, compass, recalcStart, remaining, stepRemaining, atEnd, statusText, profileCriteria, WANTS, GOOD_M, FAIR_M, STALE_MS, OFF_FIXES, OFF_MS };
 })();
 if (typeof module !== 'undefined') module.exports = Nav;
