@@ -1,5 +1,5 @@
 const CACHE = 'skip-v1';
-const FILES = ['./', 'index.html', 'styles.css', 'data.js', 'graph.js', 'engine.js', 'app.js', 'manifest.webmanifest', 'icons/icon.svg'];
+const FILES = ['./', 'index.html', 'styles.css', 'config.js', 'data.js', 'graph.js', 'engine.js', 'app.js', 'manifest.webmanifest', 'icons/icon.svg'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));

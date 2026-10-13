@@ -111,7 +111,7 @@ function filteredPistes() {
 function pisteRow({ p, i }) {
   return `<button class="piste" data-action="open" data-id="${p.id}">
     <span class="sq ${p.color}" title="${colorName(p.color)}"></span>
-    <span class="sp"><b>${esc(p.name)}</b><br><span class="mut">${[`Piste ${colorName(p.color).toLowerCase()}`, kmText(p.km), alts(p)].filter(Boolean).join(' · ')}</span><br>
+    <span class="sp"><b>${esc(p.name)}</b><br><span class="mut">${[`Piste ${colorName(p.color).toLowerCase()}`, kmText(p.km), alts(p)].filter(Boolean).join(' · ')}</span> ${stateChip('piste', p.id)}<br>
       <span class="lvl${i.global == null ? ' est' : ''}">${levelText(i)}</span> <span class="fit ${i.fit.key}">${i.fit.key === 'hard' ? '⚠ trop dur' : i.fit.key === 'progress' ? '↗ pour progresser' : ''}</span></span>
     ${scoreBubble(i)}</button>`;
 }
@@ -121,7 +121,7 @@ function filteredLifts() {
 }
 function liftRow(l) {
   return `<button class="piste" data-action="openlift" data-id="${l.id}"><span class="ico">${LIFT_ICON[l.type] || '🚡'}</span>
-    <span class="sp"><b>${esc(l.name)}</b><br><span class="mut">${[l.type, l.min ? Math.round(l.min) + ' min' : '', alts(l) || (l.denivele ? 'dénivelé ' + l.denivele + ' m' : '')].filter(Boolean).join(' · ')}</span></span></button>`;
+    <span class="sp"><b>${esc(l.name)}</b><br><span class="mut">${[l.type, l.min ? Math.round(l.min) + ' min' : '', alts(l) || (l.denivele ? 'dénivelé ' + l.denivele + ' m' : '')].filter(Boolean).join(' · ')}</span> ${stateChip('lift', l.id)}</span></button>`;
 }
 function listHtml() {
   const lifts = S.filt.view === 'lifts', l = lifts ? filteredLifts() : filteredPistes();
@@ -131,8 +131,9 @@ function listHtml() {
   return (prog.length ? `<h3>↗ Pour progresser</h3>${prog.map(pisteRow).join('')}` : '') + (ok.length ? `<h3>À ton niveau</h3>${ok.map(pisteRow).join('')}` : '');
 }
 function renderPistes() {
+  if (liveState === 'idle') liveLoad(false).then(() => { if (S.tab === 'pistes') render(); });
   const f = S.filt, st = station(), lifts = f.view === 'lifts';
-  return `<h2>${esc(st.name)}</h2>
+  return `<h2>${esc(st.name)}</h2>${liveBanner()}
   <input type="search" id="q" class="bigsearch" placeholder="🔍 Chercher ${lifts ? 'une remontée' : 'une piste'}" value="${esc(f.q)}" aria-label="Rechercher" autocomplete="off">
   <div class="seg" style="margin:10px 0"><button class="${lifts ? '' : 'on'}" data-action="view" data-v="pistes">Pistes (${st.pistes.length})</button><button class="${lifts ? 'on' : ''}" data-action="view" data-v="lifts">Remontées (${st.lifts.length})</button></div>
   ${lifts ? '' : `<div class="chips" style="margin-bottom:10px"><button class="chip${f.colors.length ? '' : ' on'}" data-action="allcolors">Toutes</button>
@@ -189,6 +190,7 @@ function charsHtml(p, i) {
 }
 function pisteSheet(id) {
   const p = pisteOf(id), i = info(p); sheetId = id;
+  if (liveState === 'idle') liveLoad(false).then(() => { if (sheetId === id) pisteSheet(id); });
   const tags = myVote(id)?.tags || [];
   openSheet(`<div class="row"><span class="sq ${p.color}" style="width:22px;height:22px"></span><h2 style="margin:0">${esc(p.name)}</h2></div>
     <div class="mut">Piste ${colorName(p.color).toLowerCase()} · ${[kmText(p.km), alts(p)].filter(Boolean).join(' · ')}</div>
@@ -196,6 +198,7 @@ function pisteSheet(id) {
       <span class="lab ${i.label.key}">${i.label.icon} ${i.label.text.toUpperCase()}${i.global == null ? ' (estimé)' : ''}</span><br>
       <b>${i.global == null ? `Difficulté estimée : ${fmt1(i.est)}/10` : `Note moyenne : ${fmt1(i.avg)}/10`}</b><br>
       <span class="mut">${i.global == null ? `Aucun vote pour l'instant. Estimation d'après ${esc(i.obj.basis)}.` : `Basée sur ${i.n} vote${i.n > 1 ? 's' : ''} · difficulté globale ${fmt1(i.global)}/10 (avec l'estimation objective ${fmt1(i.est)}/10)`}</span></div></div>
+    ${openingLine('piste', id)}
     <div class="fit ${i.fit.key}" style="margin-bottom:8px">${i.fit.text} (niveau ${S.level}/10)</div>
     ${i.fit.key === 'hard' ? '<div class="warn">⚠ Cette piste est au-dessus de ton niveau. Choisis plutôt une piste plus facile.</div>' : ''}
     ${tipsFor(p, i)[0]?.startsWith('⚠') ? `<div class="warn">${esc(tipsFor(p, i)[0])}</div>` : ''}
@@ -212,7 +215,7 @@ function pisteSheet(id) {
 function liftSheet(id) {
   const l = liftOf(id), cell = (k, v) => v ? `<div>${k}<b>${esc(v)}</b></div>` : '';
   openSheet(`<div class="row"><span class="ico">${LIFT_ICON[l.type] || '🚡'}</span><h2 style="margin:0">${esc(l.name)}</h2></div><div class="mut">${esc(l.type)}</div>
-    <div class="data" style="margin-top:12px">${cell('Durée du trajet', l.min ? Math.round(l.min) + ' min' : '')}${cell('Altitudes', alts(l))}${cell('Dénivelé', l.denivele ? l.denivele + ' m' : l.altFrom && l.altTo ? l.altTo - l.altFrom + ' m' : '')}
+    ${openingLine('lift', id)}<div class="data" style="margin-top:12px">${cell('Durée du trajet', l.min ? Math.round(l.min) + ' min' : '')}${cell('Altitudes', alts(l))}${cell('Dénivelé', l.denivele ? l.denivele + ' m' : l.altFrom && l.altTo ? l.altTo - l.altFrom + ' m' : '')}
       ${cell('Horaires', l.hours)}${cell('Débit maximum', l.debit ? l.debit + ' pers/h' : '')}${cell('Secteur', l.sectors.map(secName).join(' ; '))}</div>
     <div class="mut">Source : flux officiel de l'Espace Alpe d'Huez. Les informations manquantes ne sont pas fournies.</div>
 `);
@@ -537,6 +540,60 @@ function renderAbout() {
     <button class="btn ghost" data-action="reset" style="margin-top:8px">Réinitialiser mes données</button></div>`;
 }
 
+/* ---------- Données du relais (ouverture, mesures de la station, attentes déclarées) ---------- */
+const CFG = window.SKIP_CONFIG || {};
+const liveUrl = () => CFG.liveUrl || (CFG.relay ? CFG.relay.replace(/\/$/, '') + '/live.json' : 'live.json');
+let live = null, liveState = 'idle';   // live : { data, at, stale?, snapshot? }
+const LIVE_TTL = 5 * 60000;
+const hm = iso => iso ? new Date(iso).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' }) : '';
+const dm = iso => iso ? new Date(iso).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris', day: 'numeric', month: 'short' }) : '';
+async function liveLoad(force) {
+  liveState = 'loading';
+  let c = null; try { c = JSON.parse(localStorage.getItem('skip.live')); } catch { /* ignore */ }
+  if (!force && c && Date.now() - c.at < LIVE_TTL) { live = c; liveState = 'ok'; return; }
+  try {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 9000);
+    const r = await fetch(liveUrl(), { signal: ctl.signal }); clearTimeout(tm);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json(); if (data.schema !== 1) throw new Error('schéma');
+    live = { data, at: Date.now(), stale: !!data.stale }; try { localStorage.setItem('skip.live', JSON.stringify(live)); } catch { /* ignore */ }
+  } catch {
+    live = c ? { ...c, stale: true } : null;
+    if (!live) { try { const d = await (await fetch('live-snapshot.json')).json(); live = { data: d, at: Date.now(), snapshot: true }; } catch { /* aucun */ } }
+  }
+  liveState = live ? 'ok' : 'none';
+}
+const liveAge = () => live ? Math.round((Date.now() - new Date(live.data.source.feedUpdated || live.data.source.fetchedAt).getTime()) / 60000) : null;
+// Source affichée partout : nature de la donnée + heure de mise à jour du flux
+const liveTag = () => !live ? 'Information indisponible' : `${live.snapshot ? 'Instantané d\'aperçu' : live.stale ? 'Dernière version enregistrée' : 'Flux officiel'} · maj ${dm(live.data.source.feedUpdated)} ${hm(live.data.source.feedUpdated)}`;
+const seasonOpen = () => !!live?.data?.summary?.seasonOpen && !live.snapshot;
+const liveItem = (kind, id) => live?.data?.[kind === 'lift' ? 'lifts' : 'pistes']?.find(x => x.id === id) || null;
+const OPEN_STATES = ['open', 'delayed'];
+const stateText = it => !it ? 'Information indisponible' : ({ open: 'Ouvert', delayed: 'Ouverture décalée', temp_closed: 'Fermeture momentanée', closed: 'Fermé', closed_today: 'Fermé jusqu\'à demain', off_season: 'Hors période d\'exploitation', unknown: 'Information indisponible' })[it.state] || it.status;
+// Fermeture connue : appliquée aux itinéraires seulement quand le domaine est réellement en exploitation (sinon tout serait « fermé »)
+const isClosed = (kind, id) => { if (!seasonOpen()) return false; const it = liveItem(kind, id); return !!it && !OPEN_STATES.includes(it.state); };
+const openingLine = (kind, id) => { const it = liveItem(kind, id); return `<div class="mut" style="margin:6px 0">Ouverture : <b>${esc(stateText(it))}</b>${it?.hours ? ' · ' + esc(it.hours) : ''} · <span>${esc(liveTag())}</span></div>`; };
+function stateChip(kind, id) {
+  const it = seasonOpen() ? liveItem(kind, id) : null; if (!it) return '';
+  return `<span class="badge" style="${OPEN_STATES.includes(it.state) ? 'background:#dff5e6;color:#12803a' : 'background:#ffdcd9;color:#b3261e'}">${esc(stateText(it))}</span>`;
+}
+function liveBanner() {
+  if (!live) return '';
+  const s = live.data.summary;
+  return `<div class="warn" style="background:var(--brand2);color:var(--ink)">${seasonOpen() ? `🟢 ${s.liftsOpen} remontées sur ${s.liftsTotal} et ${s.pistesOpen} pistes sur ${s.pistesTotal} ouvertes.` : `Domaine fermé ou hors saison : ${s.liftsOpen} remontée(s) sur ${s.liftsTotal} ouverte(s). L'état d'ouverture n'est pas appliqué aux itinéraires.`}<br><span class="mut">${esc(liveTag())}</span></div>`;
+}
+const DIRS = { N: 'nord', NE: 'nord-est', E: 'est', SE: 'sud-est', S: 'sud', SO: 'sud-ouest', O: 'ouest', NO: 'nord-ouest' };
+function stationWeatherHtml() {
+  if (!live) return `<div class="card"><b>Mesures de la station</b><p class="mut" style="margin:6px 0 0">Information indisponible : aucun relais configuré ou injoignable (voir relay/README.md). Les prévisions ci-dessus viennent d'un modèle, pas des capteurs de la station.</p></div>`;
+  const zs = live.data.weather.zones.filter(z => z.alt), idx = live.data.indices || {};
+  return `<div class="card"><b>Mesures de la station</b> <span class="badge">${live.snapshot ? 'instantané' : 'mesure station'}</span>
+    ${zs.map(z => `<div class="step"><div class="sp"><b>${esc(z.name)}</b> <span class="mut">${z.alt} m · maj ${esc(hm(z.updated))}</span><br>
+      <span class="mut">${[z.tempC != null ? `${Math.round(z.tempC)} °C${z.feelsC != null && z.feelsC !== z.tempC ? ` (ressenti ${Math.round(z.feelsC)}°)` : ''}` : '', z.windKmh != null ? `vent ${Math.round(z.windKmh)} km/h${z.windDir ? ' ' + esc(DIRS[z.windDir] || z.windDir) : ''}${z.gustKmh ? `, rafales ${Math.round(z.gustKmh)}` : ''}` : '',
+        z.freshSnowCm ? `neige fraîche ${z.freshSnowCm} cm` : '', z.snowQuality ? `neige : ${esc(z.snowQuality.toLowerCase())}` : '', z.isoZeroM ? `0 °C vers ${z.isoZeroM} m` : '', z.avalancheRisk ? `avalanche : ${esc(z.avalancheRisk.label.toLowerCase())} (${z.avalancheRisk.level}/${z.avalancheRisk.scale})` : ''].filter(Boolean).join(' · ')}</span></div></div>`).join('')}
+    ${idx.skiabilite ? `<div class="mut" style="margin-top:6px">${esc(idx.skiabilite.label)} · ${esc(idx.ambiance?.label || '')}</div>` : ''}
+    <div class="mut" style="margin-top:6px">${esc(liveTag())}. ${live.data.weather.forecast.some(f => !f.usable) ? 'Les prévisions J+2 et J+3 du flux sont vides (valeurs de remplissage) : elles ne sont pas affichées.' : ''}</div></div>`;
+}
+
 /* ---------- Météo (prévisions MET Norway, par altitude) ---------- */
 const WX = { lat: 45.0917, lng: 6.07, alts: { base: 1860, top: 3000 }, ttl: 30 * 60000 };
 let wxData = { base: null, top: null }, wxAlt = 'base', wxState = 'idle';
@@ -597,6 +654,7 @@ async function wxLoad(force) {
 }
 function renderWeather() {
   if (wxState === 'idle') wxLoad(false);
+  if (liveState === 'idle') liveLoad(false).then(() => { if (S.tab === 'weather' || S.tab === 'pistes') render(); });
   const alt = WX.alts[wxAlt], d = wxData[wxAlt];
   const seg = `<div class="seg" style="margin:6px 0 12px">${[['base', `Station ${WX.alts.base} m`], ['top', `Sommet ${WX.alts.top} m`]].map(([k, t]) => `<button class="${wxAlt === k ? 'on' : ''}" data-action="wxalt" data-k="${k}">${t}</button>`).join('')}</div>`;
   const links = `<p class="mut">Pour les conditions mesurées par la station et le risque d'avalanche, consulte la source officielle : <a href="https://skipass.alpedhuez.com/meteo-espace-alpe-dhuez/" target="_blank" rel="noopener noreferrer">météo Espace Alpe d'Huez ↗</a> · <a href="https://meteofrance.com/meteo-montagne" target="_blank" rel="noopener noreferrer">Météo-France montagne ↗</a>.</p>`;
@@ -614,6 +672,7 @@ function renderWeather() {
   <div class="card">${days.map(x => { const [i2, t2] = symInfo(x.sym), h = wxHints(x); return `<div class="step"><div style="font-size:26px;width:34px;text-align:center">${i2}</div><div class="sp"><b>${esc(label(x.date))}</b> <span class="mut">${esc(t2)}</span><br>
       <span class="mut">${x.tmin}° / ${x.tmax}° · vent max ${x.wind} km/h${x.precip ? ` · ${String(x.precip).replace('.', ',')} mm` : ''}${x.snow ? ` · ❄ ≈ ${x.snow} cm` : ''}</span>${h.length ? `<br><span class="fit hard" style="font-weight:600">${esc(h[0])}</span>` : ''}</div></div>`; }).join('')}</div>
   <p class="mut">Prévisions MET Norway (modèle météo public), calculées pour ${alt} m, mises à jour le ${new Date(d.updated).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}${d.snapshot ? ' (instantané d\'aperçu, pas en direct)' : d.stale ? ' (hors ligne : dernière version enregistrée)' : ''}. La neige est estimée (1 mm de pluie ≈ 1 cm de neige quand il fait moins de 1 °C) ; ce sont des prévisions, pas des mesures de la station.${skiSeason() ? '' : ' Hors saison de ski : les conseils neige et vent ne sont pas affichés.'}</p>
+  ${stationWeatherHtml()}
   <button class="btn sm ghost" data-action="wxreload">↻ Actualiser</button>${links}`;
 }
 
@@ -640,7 +699,7 @@ document.addEventListener('click', e => {
   const d = el.dataset, f = S.filt;
   switch (d.action) {
     case 'wxalt': wxAlt = d.k; render(); break;
-    case 'wxreload': wxData = { base: null, top: null }; wxLoad(true); render(); break;
+    case 'wxreload': wxData = { base: null, top: null }; wxLoad(true); liveLoad(true).then(() => S.tab === 'weather' && render()); render(); break;
     case 'sos': if (confirm('Appeler le 112 (urgences) ?')) location.href = 'tel:112'; break;
     case 'close': closeSheet(); break;
     case 'open': sheetPeriod = 0; showChars = false; pisteSheet(d.id); break;

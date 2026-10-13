@@ -32,7 +32,8 @@ def load_root(path=None):
     raw = open(path, 'rb').read() if path else urllib.request.urlopen(URL, timeout=60).read()
     return ET.fromstring(raw)
 
-def build_station(root):
+def build_station(root, with_live=False):
+    """with_live=True ajoute à chaque entrée un champ `_live` (état d'ouverture, attente) utilisé par le relais ; data.js n'en contient jamais."""
     sectors = {}
     for s in root.iter('SECTEUR'):
         parts = [p.strip() for p in re.split(r'<br\s*/>', s.get('nom')) if p.strip()]
@@ -47,7 +48,8 @@ def build_station(root):
         d, r = num(a.get('alt_depart')), num(a.get('alt_arrivee'))
         key = (name.lower(), a['niveau'], d, r)
         e = pistes.setdefault(key, {'name': name, 'color': COLORS[a['niveau']], 'km': km, 'altFrom': int(d) if d else None,
-                                    'altTo': int(r) if r else None, 'denivele': int(num(a.get('denivele')) or 0) or None, 'hours': hours(p), 'sectors': []})
+                                    'altTo': int(r) if r else None, 'denivele': int(num(a.get('denivele')) or 0) or None, 'hours': hours(p), 'sectors': [],
+                                    **({'_live': {'etat': a.get('etat'), 'status': a.get('status'), 'attente': a.get('attente')}} if with_live else {})})
         if a['sct_id'] not in e['sectors']:
             e['sectors'].append(a['sct_id'])
     for l in root.iter('REMONTEE'):
@@ -58,7 +60,8 @@ def build_station(root):
         key = (a['nom'].strip().lower(), a['type'], d, r)
         e = lifts.setdefault(key, {'name': a['nom'].strip(), 'type': LIFT_TYPES[a['type']], 'altFrom': int(d) if d else None,
                                    'altTo': int(r) if r else None, 'min': m, 'debit': int(num(a.get('debit')) or 0) or None,
-                                   'denivele': int(num(a.get('denivele')) or 0) or None, 'hours': hours(l), 'sectors': []})
+                                   'denivele': int(num(a.get('denivele')) or 0) or None, 'hours': hours(l), 'sectors': [],
+                                   **({'_live': {'etat': a.get('etat'), 'status': a.get('status'), 'attente': a.get('attente'), 'hours': a.get('plagesheures')}} if with_live else {})})
         if a['sct_id'] not in e['sectors']:
             e['sectors'].append(a['sct_id'])
     def order(sids):
