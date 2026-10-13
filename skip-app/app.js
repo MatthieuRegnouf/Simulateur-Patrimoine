@@ -537,6 +537,86 @@ function renderAbout() {
     <button class="btn ghost" data-action="reset" style="margin-top:8px">Réinitialiser mes données</button></div>`;
 }
 
+/* ---------- Météo (prévisions MET Norway, par altitude) ---------- */
+const WX = { lat: 45.0917, lng: 6.07, alts: { base: 1860, top: 3000 }, ttl: 30 * 60000 };
+let wxData = { base: null, top: null }, wxAlt = 'base', wxState = 'idle';
+const wxUrl = a => `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${WX.lat}&lon=${WX.lng}&altitude=${WX.alts[a]}`;
+const wxStore = { get: k => { try { return JSON.parse(localStorage.getItem('skip.wx.' + k)); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('skip.wx.' + k, JSON.stringify(v)); } catch { /* ignore */ } } };
+function symInfo(code) {
+  const c = (code || '').replace(/_(day|night|polartwilight)$/, '');
+  if (/thunder/.test(c)) return ['⛈', 'Orage'];
+  if (/heavysnow/.test(c)) return ['❄️', 'Forte neige'];
+  if (/snow/.test(c)) return ['🌨', /light/.test(c) ? 'Neige faible' : 'Neige'];
+  if (/sleet/.test(c)) return ['🌨', 'Neige fondue'];
+  if (/heavyrain/.test(c)) return ['🌧', 'Forte pluie'];
+  if (/lightrain/.test(c)) return ['🌦', 'Pluie faible'];
+  if (/rain/.test(c)) return ['🌧', 'Pluie'];
+  if (/fog/.test(c)) return ['🌫', 'Brouillard'];
+  return { clearsky: ['☀️', 'Ciel dégagé'], fair: ['🌤', 'Peu nuageux'], partlycloudy: ['⛅', 'Éclaircies'], cloudy: ['☁️', 'Nuageux'] }[c] || ['🌡', 'Variable'];
+}
+const parisDate = d => new Date(d).toLocaleDateString('fr-CA', { timeZone: 'Europe/Paris' });
+const parisHour = d => +new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(d)).find(p => p.type === 'hour').value;
+const skiSeason = () => [10, 11, 0, 1, 2, 3, 4].includes(new Date().getMonth());   // novembre à mai : les conseils neige n'ont de sens qu'en saison
+function wxDaily(ts) {
+  const days = {};
+  ts.forEach(e => {
+    const d = e.data, det = d.instant.details, k = parisDate(e.time), g = days[k] = days[k] || { date: k, t: [], wind: 0, precip: 0, snow: 0, sym: null, noon: 99 };
+    g.t.push(det.air_temperature); g.wind = Math.max(g.wind, det.wind_speed * 3.6);
+    const step = d.next_1_hours || d.next_6_hours, mm = step?.details?.precipitation_amount || 0;
+    g.precip += mm; if (det.air_temperature <= 1) g.snow += mm;   // 1 mm d'eau ≈ 1 cm de neige fraîche
+    const dist = Math.abs(parisHour(e.time) - 12), code = (d.next_6_hours || d.next_1_hours)?.summary?.symbol_code;
+    if (code && dist < g.noon) { g.noon = dist; g.sym = code; }
+  });
+  return Object.values(days).map(g => ({ date: g.date, tmin: Math.round(Math.min(...g.t)), tmax: Math.round(Math.max(...g.t)), wind: Math.round(g.wind), precip: Math.round(g.precip * 10) / 10, snow: Math.round(g.snow), sym: g.sym }));
+}
+function wxHints(d) {
+  const h = []; if (!skiSeason()) return h;
+  if (d.wind >= 50) h.push('💨 Vent fort : remontées d\'altitude parfois fermées');
+  if (d.snow >= 10) h.push('❄ Neige fraîche : prudence hors-piste, vérifie le bulletin d\'avalanche');
+  if (d.tmax <= -12) h.push('🥶 Très froid : couvre-toi, attention aux gelures');
+  if (d.tmin >= 2 && d.tmax >= 8) h.push('💧 Neige lourde ou transformée : skie plutôt le matin');
+  if (d.precip >= 3 && d.snow < d.precip / 2) h.push('🌧 Pluie : visibilité et confort réduits');
+  return h;
+}
+async function wxLoad(force) {
+  wxState = 'loading';
+  for (const a of ['base', 'top']) {
+    const c = wxStore.get(a);
+    if (!force && c && Date.now() - c.at < WX.ttl) { wxData[a] = c; continue; }
+    try {
+      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 9000);
+      const j = await (await fetch(wxUrl(a), { signal: ctl.signal })).json(); clearTimeout(tm);
+      wxData[a] = { at: Date.now(), updated: j.properties.meta.updated_at, ts: j.properties.timeseries, live: true }; wxStore.set(a, wxData[a]);
+    } catch { wxData[a] = c ? { ...c, stale: true } : null; }
+  }
+  if (!wxData.base && !wxData.top) {   // dernier recours : instantané fourni avec l'application (aperçu, démonstration)
+    try { const snap = await (await fetch('meteo-snapshot.json')).json(); wxData = { base: { ...snap.base, snapshot: true }, top: { ...snap.top, snapshot: true } }; } catch { /* aucun */ }
+  }
+  wxState = wxData.base || wxData.top ? 'ok' : 'error';
+  if (S.tab === 'weather') render();
+}
+function renderWeather() {
+  if (wxState === 'idle') wxLoad(false);
+  const alt = WX.alts[wxAlt], d = wxData[wxAlt];
+  const seg = `<div class="seg" style="margin:6px 0 12px">${[['base', `Station ${WX.alts.base} m`], ['top', `Sommet ${WX.alts.top} m`]].map(([k, t]) => `<button class="${wxAlt === k ? 'on' : ''}" data-action="wxalt" data-k="${k}">${t}</button>`).join('')}</div>`;
+  const links = `<p class="mut">Pour les conditions mesurées par la station et le risque d'avalanche, consulte la source officielle : <a href="https://skipass.alpedhuez.com/meteo-espace-alpe-dhuez/" target="_blank" rel="noopener noreferrer">météo Espace Alpe d'Huez ↗</a> · <a href="https://meteofrance.com/meteo-montagne" target="_blank" rel="noopener noreferrer">Météo-France montagne ↗</a>.</p>`;
+  if (wxState === 'loading' || wxState === 'idle') return `<h2>Météo · Alpe d'Huez</h2>${seg}<p class="mut">Chargement des prévisions…</p>`;
+  if (!d) return `<h2>Météo · Alpe d'Huez</h2>${seg}<div class="warn">Prévisions indisponibles : pas de réseau, ou service injoignable depuis cet appareil.</div><button class="btn sm" data-action="wxreload">Réessayer</button>${links}`;
+  const days = wxDaily(d.ts), now = d.ts.find(e => new Date(e.time) >= Date.now() - 3600000) || d.ts[0], nd = now.data.instant.details;
+  const [ic, txt] = symInfo((now.data.next_1_hours || now.data.next_6_hours)?.summary?.symbol_code), today = days.find(x => x.date === parisDate(Date.now())) || days[0];
+  const hrs = d.ts.filter(e => new Date(e.time) >= Date.now() - 3600000 && e.data.next_1_hours).slice(0, 14);
+  const label = dt => { const t = parisDate(Date.now()), tm = parisDate(Date.now() + DAY); return dt === t ? 'Aujourd\'hui' : dt === tm ? 'Demain' : new Date(dt + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }); };
+  return `<h2>Météo · Alpe d'Huez</h2>${seg}
+  <div class="card"><div class="row"><div style="font-size:46px;line-height:1">${ic}</div><div class="sp"><b style="font-size:26px">${Math.round(nd.air_temperature)} °C</b> <span class="mut">à ${alt} m</span><br><span class="mut">${esc(txt)} · vent ${Math.round(nd.wind_speed * 3.6)} km/h</span></div></div>
+    <div class="mut" style="margin-top:6px">Aujourd'hui : ${today.tmin}° / ${today.tmax}° · précipitations ${String(today.precip).replace('.', ',')} mm${today.snow ? ` · neige ≈ ${today.snow} cm` : ''}</div>
+    ${hrs.length ? `<div class="hrs">${hrs.map(e => `<div class="hr"><span class="mut">${String(parisHour(e.time)).padStart(2, '0')} h</span><span>${symInfo(e.data.next_1_hours.summary.symbol_code)[0]}</span><b>${Math.round(e.data.instant.details.air_temperature)}°</b></div>`).join('')}</div>` : ''}</div>
+  <h3>Jour par jour</h3>
+  <div class="card">${days.map(x => { const [i2, t2] = symInfo(x.sym), h = wxHints(x); return `<div class="step"><div style="font-size:26px;width:34px;text-align:center">${i2}</div><div class="sp"><b>${esc(label(x.date))}</b> <span class="mut">${esc(t2)}</span><br>
+      <span class="mut">${x.tmin}° / ${x.tmax}° · vent max ${x.wind} km/h${x.precip ? ` · ${String(x.precip).replace('.', ',')} mm` : ''}${x.snow ? ` · ❄ ≈ ${x.snow} cm` : ''}</span>${h.length ? `<br><span class="fit hard" style="font-weight:600">${esc(h[0])}</span>` : ''}</div></div>`; }).join('')}</div>
+  <p class="mut">Prévisions MET Norway (modèle météo public), calculées pour ${alt} m, mises à jour le ${new Date(d.updated).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}${d.snapshot ? ' (instantané d\'aperçu, pas en direct)' : d.stale ? ' (hors ligne : dernière version enregistrée)' : ''}. La neige est estimée (1 mm de pluie ≈ 1 cm de neige quand il fait moins de 1 °C) ; ce sont des prévisions, pas des mesures de la station.${skiSeason() ? '' : ' Hors saison de ski : les conseils neige et vent ne sont pas affichés.'}</p>
+  <button class="btn sm ghost" data-action="wxreload">↻ Actualiser</button>${links}`;
+}
+
 /* ---------- Guidage ---------- */
 function advanceGuide() {
   if (!guide) return;
@@ -548,7 +628,7 @@ function advanceGuide() {
 /* ---------- Rendu & événements ---------- */
 function render() {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
-  $('#view').innerHTML = { pistes: renderPistes, route: renderRoute, day: renderDay, meet: renderMeet, about: renderAbout }[S.tab]();
+  $('#view').innerHTML = { pistes: renderPistes, route: renderRoute, weather: renderWeather, day: renderDay, meet: renderMeet, about: renderAbout }[S.tab]();
 }
 const updateList = () => { const l = $('#plist'); if (l) l.innerHTML = listHtml(); };
 
@@ -559,6 +639,8 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]'); if (!el) return;
   const d = el.dataset, f = S.filt;
   switch (d.action) {
+    case 'wxalt': wxAlt = d.k; render(); break;
+    case 'wxreload': wxData = { base: null, top: null }; wxLoad(true); render(); break;
     case 'sos': if (confirm('Appeler le 112 (urgences) ?')) location.href = 'tel:112'; break;
     case 'close': closeSheet(); break;
     case 'open': sheetPeriod = 0; showChars = false; pisteSheet(d.id); break;

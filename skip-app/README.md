@@ -15,6 +15,7 @@ Servie en HTTPS, l'appli s'installe sur l'écran d'accueil (Android : « Install
 - **Sécurité et progression** : niveau personnel, badges « à ton niveau / pour progresser / trop dur », mode « 🎯 Pour moi » (pistes un cran au-dessus d'abord, trop dures masquées), avertissement de neige dure signalée.
 - **Coups de cœur**, **Pistes et remontées** : liste complète, recherche sans accent, filtres couleur et secteur.
 - **Mon itinéraire** : tu choisis le départ, l'arrivée, la durée (1 h, 1 h 30, 2 h, 3 h, 4 h), les couleurs de pistes et ta vitesse ; l'appli propose un enchaînement complet de remontées, pistes, liaisons et courts chemins à pied qui revient à l'arrivée. Carte réelle avec étapes numérotées, détail pas à pas, « autre proposition », hors ligne, guidage audio, partage.
+- **Météo** : prévisions jour par jour sur 9 jours pour la station (1860 m) et le sommet (3000 m), heure par heure pour la journée, avec cache hors ligne. Source : MET Norway (modèle météo public, lecture directe depuis l'appli). Conseils vent / neige fraîche / froid affichés seulement en saison.
 - **Ma journée** : le GPS suit l'altitude et reconnaît les descentes et remontées dont les altitudes correspondent ; en cas d'hésitation entre plusieurs pistes, tu choisis le soir. Mode poche (écran noir, retour vocal et vibration), vote de fin de journée, compteur de temps d'écran.
 - **Rencontres** : profil (pseudo, ski/snowboard, niveau, statut, envies), liens réels vers Instagram, Snapchat, Facebook, Strava, partage de profil / parcours / coups de cœur par message (WhatsApp, SMS…), ajout d'un ami en collant son message, chat général du jour.
 - **SKIP** : comparatif Skiinfo, Skitude/Strava, Skiif.
@@ -37,6 +38,9 @@ python3 tools/build_graph.py            # interroge OpenStreetMap + altitudes, r
 python3 tools/build_graph.py --cache /chemin/cache --xml flux.xml   # réutilise des téléchargements déjà faits
 ```
 Couverture actuelle : 98 pistes officielles sur 111 et 59 remontées sur 65 ont un tracé ; les autres (stades débutants, ascenseurs, tapis) n'y sont pas. Les liaisons sont déduites de la carte OpenStreetMap, qui n'est pas une source officielle : elles peuvent contenir des erreurs, d'où l'avertissement dans l'appli.
+
+## Météo
+Les prévisions viennent de l'API publique MET Norway (`api.met.no`, autorise la lecture depuis un navigateur ; les données sont mises en cache 30 min). Le fichier de la station (`live.aten-altitude.com/alpehuez/atenlive.xml`) contient aussi la météo mesurée (température, neige, vent, limite du 0 °C, risque d'avalanche) et des prévisions J+1 à J+3, mais il n'autorise pas la lecture depuis un navigateur : pour l'afficher il faut un petit relais (serveur ou tâche planifiée). La neige affichée est une estimation (1 mm d'eau ≈ 1 cm de neige sous 1 °C).
 
 ## Limites
 - Il manque un backend : la « communauté » se limite à toi et à tes contacts SKIP (les votes se partagent par message) ; moyenne et chat partagés, chat commun, connexion réelle aux réseaux (OAuth) et annuaire des skieurs. Le partage se fait par message texte contenant un code `SKIP:…`.
