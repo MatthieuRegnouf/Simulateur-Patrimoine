@@ -30,11 +30,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     }
     /* ---- 2. navigation avec position : progression, étape courante, imprécision, signal ancien, sortie de parcours ---- */
     {
-      const { ctx, p } = await open(GEO); await plan(p); await p.click('[data-action=nstart]'); await p.waitForTimeout(1200);
+      const { ctx, p } = await open(GEO); await plan(p); assert.match(await p.textContent('.btn.gps'), /Ouvrir le GPS/); await p.click('.btn.gps'); await p.waitForTimeout(1200);
       assert.match(await p.textContent('#ntop'), /Rejoins le départ|pas encore sur l'itinéraire/); ok('avant d\'être sur le tracé : « Rejoins le départ », aucune progression inventée');
       let pt = await pointOn(p, 1, .5); await ctx.setGeolocation({ latitude: pt[0], longitude: pt[1], accuracy: 10 }); await p.waitForTimeout(1800);
       let s = await p.evaluate(() => ({ s: nv.st.s, step: nv.st.step, on: nv.st.onRoute })); assert.equal(s.on, true); assert.equal(s.step, 1); ok(`position sur le tracé : étape ${s.step + 1}, ${Math.round(s.s)} m parcourus`);
-      assert.match(await p.textContent('#ntop'), /Descendez/); assert.match(await p.textContent('#nbot'), /Parcouru/);
+      assert.match(await p.textContent('#ntop'), /Prenez la piste/); assert.match(await p.textContent('#nbot'), /Parcouru/);
       // imprécise
       const s0 = s.s; pt = await pointOn(p, 1, .8); await ctx.setGeolocation({ latitude: pt[0], longitude: pt[1], accuracy: 200 }); await p.waitForTimeout(1800);
       assert.match(await p.textContent('#ntop'), /imprécise/); assert.equal(await p.evaluate(() => nv.st.s), s0); ok('position imprécise (± 200 m) : signalée, progression gelée');

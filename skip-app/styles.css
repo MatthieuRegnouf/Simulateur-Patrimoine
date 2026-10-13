@@ -123,3 +123,6 @@ body.navopen{overflow:hidden}
 .nlist{max-height:34vh;overflow:auto;margin-top:8px;border-top:1px solid var(--line)}
 .nrow{display:flex;gap:10px;align-items:center;padding:8px 2px;border-bottom:1px solid var(--line);cursor:pointer}
 .nrow.done{opacity:.5}.nrow.cur{background:var(--brand2);border-radius:10px;padding-left:6px}.nrow.sel{box-shadow:0 0 0 2px #ffc400 inset;border-radius:10px}
+
+.btn.gps{font-size:18px;padding:16px;box-shadow:0 4px 14px rgba(11,95,255,.35)}
+.nq{width:auto!important;border-radius:12px!important;padding:0 10px;font-size:13px;font-weight:700;height:34px}

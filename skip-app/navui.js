@@ -89,7 +89,7 @@ function offCardHtml() {
     ${sv.items ? itemsHtml(sv.items) : '<div class="mut">Cet ancien enregistrement ne contient ni fond de carte ni vérification : retélécharge-le.</div>'}
     ${mapGone ? '<div class="warn" style="margin-top:6px">⚠︎ Le téléphone a effacé le fond de carte téléchargé. Retélécharge l\'itinéraire.</div>' : ''}${shellGone ? `<div class="warn" style="margin-top:6px">⚠︎ Fichiers de l'appli absents du cache : ${esc(offStat.miss.join(', '))}. Reconnecte-toi puis mets à jour.</div>` : ''}
     <div class="mut" style="margin-top:6px">${sv.liveAt ? `Ouverture des pistes : instantané du ${esc(dm(sv.liveAt))} à ${esc(hm(sv.liveAt))}, <b>pas du direct</b>.` : 'Ouverture des pistes : non enregistrée.'} ${sv.wxAt ? `Météo : prévisions du ${esc(dm(sv.wxAt))} à ${esc(hm(sv.wxAt))}, <b>pas du direct</b>.` : 'Météo : non enregistrée.'} Temps d'attente : estimations, jamais du direct hors ligne.${sv.mapDate ? ` Fond de carte : données OpenStreetMap du ${frDate(sv.mapDate)}.` : ''}</div>
-    <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-action="${cur ? 'nstart' : 'loadsaved'}">${cur ? '🧭 Naviguer' : 'Ouvrir cet itinéraire'}</button><button class="btn sm sec" data-action="dlstart" ${navigator.onLine ? '' : 'disabled'}>${sv.verdict === 'complet' ? 'Mettre à jour' : 'Réessayer le téléchargement'}</button><button class="btn sm ghost" data-action="delsaved">Supprimer</button></div>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-action="${cur ? 'nstart' : 'loadsaved'}">${cur ? '🧭 Ouvrir le GPS' : 'Ouvrir cet itinéraire'}</button><button class="btn sm sec" data-action="dlstart" ${navigator.onLine ? '' : 'disabled'}>${sv.verdict === 'complet' ? 'Mettre à jour' : 'Réessayer le téléchargement'}</button><button class="btn sm ghost" data-action="delsaved">Supprimer</button></div>
     ${navigator.onLine ? '' : '<div class="mut" style="margin-top:4px">Mise à jour impossible sans réseau.</div>'}${whatWorksHtml()}`;
 }
 function updateOffCard() { const c = $('#offcard'); if (c) c.innerHTML = offCardHtml(); }
@@ -165,10 +165,13 @@ const kindCol = s => s.kind === 'piste' ? `var(--${s.color})` : s.kind === 'lift
 function instrFor(pl, i, rem, list) {   // list : version courte pour la liste d'étapes (la distance est affichée à part)
   const s = pl.steps[i]; if (!s) return { icon: '🏁', main: 'Arrivée', sub: '' };
   const dist = rem != null ? mText(rem) : mText(s.m);
-  if (s.kind === 'lift') return { icon: '🚡', main: `Prenez ${s.name}`, sub: `${liftType(s)} · ${s.min} min · descente à ${s.toName}` };
-  if (s.kind === 'piste') return { icon: '⛷', main: `Descendez ${stepName(s)}`, sub: list ? `Piste ${colorName(s.color).toLowerCase()} · jusqu'à ${s.toName}` : `Piste ${colorName(s.color).toLowerCase()} · encore ${dist} · jusqu'à ${s.toName}` };
-  if (s.kind === 'walk') return { icon: '🚶', main: list ? 'Marchez' : `Marchez ${dist}`, sub: `En chaussures de ski, jusqu'à ${s.toName}` };
-  return { icon: '↝', main: `Suivez la liaison à ski`, sub: list ? `Jusqu'à ${s.toName}` : `Encore ${dist} jusqu'à ${s.toName}` };
+  if (s.kind === 'lift') {
+    const cab = /cabine|Télécabine|Téléphérique|Télémix/i.test(liftType(s)), sub = s.viaNames && s.viaNames.length ? (cab ? `Restez dans la cabine jusqu'à ${s.toName}` : `Descendez à ${s.toName} (arrêts intermédiaires : vérifie les panneaux)`) : `Descendez à ${s.toName}`;
+    return { icon: '🚡', main: `Rejoignez la remontée ${s.name}`, sub: list ? `${liftType(s)} · ${s.min} min · ${sub}` : `${sub} · ${s.min} min` };
+  }
+  if (s.kind === 'piste') return { icon: '⛷', main: `Prenez la piste ${stepName(s)}`, sub: list ? `${colorName(s.color)} · jusqu'à ${s.toName}` : `${colorName(s.color)} · encore ${dist} · jusqu'à ${s.toName}` };
+  if (s.kind === 'walk') return { icon: '🚶', main: list ? 'Marchez' : `Marchez ${dist}`, sub: list ? `Jusqu'à ${s.toName}` : `En chaussures de ski, jusqu'à ${s.toName}` };
+  return { icon: '↝', main: 'Suivez la liaison à ski', sub: list ? `Jusqu'à ${s.toName}` : `Encore ${dist} jusqu'à ${s.toName}` };
 }
 function nextLine(pl, i) { const n = pl.steps[i + 1]; if (!n) return 'Ensuite : arrivée.'; const x = instrFor(pl, i + 1); return 'Ensuite : ' + x.main.charAt(0).toLowerCase() + x.main.slice(1) + '.'; }
 function remainMin(pl, st) {   // minutes restantes : estimation, étape en cours au prorata de la distance
@@ -187,7 +190,7 @@ function navTopHtml() {
   const off = !navigator.onLine ? `<div class="nstat">📴 Hors ligne : ouverture, météo et attentes = dernières données enregistrées${live ? ' (' + esc(dm(live.data.source.feedUpdated)) + ' ' + esc(hm(live.data.source.feedUpdated)) + ')' : ' (aucune)'}, pas du direct.</div>` : '';
   const recalc = pl.recalc ? `<div class="nstat">↻ Itinéraire recalculé à ${esc(hhmm(pl.recalc.at))} avec les données enregistrées. Non téléchargé.</div>` : '';
   return `<div class="nmain"><div class="nico" style="background:${st.started && pl.steps[i] ? kindCol(pl.steps[i]) : 'var(--brand)'}">${ins.icon}</div><div class="sp"><div class="nbig">${esc(ins.main)}</div><div class="nsub">${esc(ins.sub)}</div>${fin ? '' : `<div class="nsub nnext">${esc(nextLine(pl, i))}</div>`}</div>
-      <button class="nq" data-action="nquit" aria-label="Quitter la navigation">✕</button></div>
+      <button class="nq" data-action="nquit" aria-label="Arrêter la navigation et revenir au résumé">✕ Arrêter</button></div>
     <div class="nstat g-${stt.key}">${{ good: '🟢', fair: '🟡', poor: '🟠', stale: '🟠', denied: '🚫', unavailable: '🚫', off: '🔴', near: '🟡', wait: '⏳' }[stt.key] || ''} ${esc(stt.text)}</div>${offBlock}${off}${recalc}`;
 }
 function navBottomHtml() {
@@ -249,7 +252,7 @@ async function startNav() {
 }
 function stopNav() {
   if (!nv) return; clearInterval(nv.tick); if (nv.watch != null) navigator.geolocation.clearWatch(nv.watch); try { nv.wake && nv.wake.release(); } catch { /* ignore */ }
-  navMap && navMap.destroy(); navMap = null; nv = null; $('#nav').hidden = true; $('#nav').innerHTML = ''; document.body.classList.remove('navopen'); if (S.tab === 'route') render();
+  navMap && navMap.destroy(); navMap = null; nv = null; $('#nav').hidden = true; $('#nav').innerHTML = ''; document.body.classList.remove('navopen'); if (S.tab === 'route') { render(); setTimeout(() => $('#planres')?.scrollIntoView({ block: 'start' }), 30); }
 }
 /* Recalcul depuis la position : fonctionne sans réseau (le planificateur est dans l'appli) mais seulement près d'un point connu du réseau */
 function navRecalc() {

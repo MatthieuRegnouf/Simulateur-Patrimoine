@@ -388,6 +388,12 @@ function levelSummary(pl) {
   const rated = inf.filter(i => i.n >= 5).length, few = inf.filter(i => i.n > 0 && i.n < 5).length, est = inf.length - rated - few;
   return `<div class="mut" style="margin-top:6px">Difficulté recherchée : ${pl.opt.loL} à ${pl.opt.hiL} sur 5 (${Engine.LEVELS[pl.opt.loL - 1].label.toLowerCase()} à ${Engine.LEVELS[pl.opt.hiL - 1].label.toLowerCase()}). Sur ${inf.length} pistes : ${rated} avec au moins 5 votes, ${few} peu documentée${few > 1 ? 's' : ''}, ${est} estimée${est > 1 ? 's' : ''} (aucun vote). Les couleurs officielles restent la référence : une note de skieurs ne rend pas une piste adaptée à tous.</div>`;
 }
+/* Résumé court : la chaîne des étapes principales (remontées et pistes nommées) */
+function keyStepsHtml(pl) {
+  const ic = { lift: '🚡', piste: '⛷', walk: '🚶', link: '↝' }, ss = pl.steps.filter(s => s.kind === 'lift' || (s.kind === 'piste' && s.m > 300));
+  const shown = ss.slice(0, 6).map(s => `<span class="chip" style="cursor:default">${ic[s.kind]} ${esc(s.kind === 'piste' ? stepName(s) : s.name)}</span>`).join('');
+  return `<div class="chips" style="margin:0 0 10px">${shown}${ss.length > 6 ? `<span class="chip" style="cursor:default">+ ${ss.length - 6} autres</span>` : ''}</div>`;
+}
 function planSummary(pl) {
   const cols = {}; pl.steps.filter(s => s.kind === 'piste').forEach(s => cols[s.color] = (cols[s.color] || 0) + 1);
   const st0 = pl.steps[0], stN = pl.steps[pl.steps.length - 1], t = pl.times, partial = t.waitKnown < t.lifts;
@@ -431,8 +437,9 @@ function renderRoute() {
     <button class="btn" data-action="plan">Créer mon itinéraire</button>
   </div>
   ${planMsg ? `<div class="warn">${esc(planMsg)}</div>` : ''}
-  ${plan ? `<div class="card"><h3 style="margin-top:0">Ton itinéraire</h3>${planSummary(plan)}
-      <div style="height:10px"></div><button class="btn" data-action="nstart">🧭 Démarrer la navigation</button></div>
+  ${plan ? `<div class="card" id="planres"><h3 style="margin-top:0">Ton itinéraire</h3>${keyStepsHtml(plan)}
+      <button class="btn gps" data-action="nstart">🧭 Ouvrir le GPS</button>
+      <div class="mut" style="margin:6px 0 10px">Ouvre la carte de navigation avec ce parcours et ta position en direct.</div>${planSummary(plan)}</div>
     <div class="card">${previewHtml()}</div>
     ${explainCard()}
     <div class="card"><h3 style="margin-top:0">Étape par étape</h3>${stepsHtml(plan)}</div>
@@ -464,6 +471,7 @@ function generateAt(v) {
     plan.reasons = explain(plan, ctx);
   }
   save(); render();
+  if (plan) setTimeout(() => $('#planres')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
 }
 
 /* ---------- Ma journée ---------- */
