@@ -1,0 +1,15 @@
+{
+ "schema": 1,
+ "massif": {
+  "id": 12,
+  "name": "Grandes-Rousses"
+ },
+ "source": {
+  "name": "Météo-France, bulletin d'estimation du risque d'avalanche (BRA)",
+  "url": "https://www.data.gouv.fr/dataservices/api-bulletin-avalanche",
+  "fetchedAt": "2026-10-18T11:11:43+00:00",
+  "lastModified": "Tue, 09 Jun 2026 16:15:26 GMT"
+ },
+ "state": "off_season",
+ "message": "Bulletin avalanche : la saison est terminée sur le massif Grandes-Rousses, rendez-vous début novembre.\nPour les conditions en montagne pendant l'été, consultez les bulletins de prévision Montagne départementaux\nIsère : 08 99 71 02 38"
+}

@@ -42,3 +42,6 @@ L'appli affiche déjà des invitations quand elle est ouverte (bandeau) et des n
 4. une tâche planifiée qui envoie `{ title, body, data: { evening: true } }` ; le service worker (`sw.js`) ouvre alors directement l'écran des pistes à noter.
 Le relais ne connaît pas les pistes skiées (elles restent sur le téléphone) : le message du soir est générique, la liste précise s'affiche à l'ouverture.
 La détection des pistes en arrière-plan (téléphone verrouillé) n'est pas possible dans une appli web : elle demande une appli native (par exemple Capacitor avec la permission de localisation en arrière-plan).
+
+## Bulletin d'avalanche (`/bra.json`)
+Lancer avec `METEOFRANCE_BRA_KEY=<clé API Météo-France DonneesPubliquesBRA> python3 relay/server.py` (option `--bra-massif 12`, `--bra-xml fichier` pour tester). Sans clé : état « indisponible ». La clé ne doit jamais être commitée.

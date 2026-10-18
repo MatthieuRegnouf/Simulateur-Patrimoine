@@ -138,8 +138,9 @@ function listHtml() {
 }
 function renderPistes() {
   if (liveState === 'idle') liveLoad(false).then(() => { if (S.tab === 'pistes') render(); });
+  if (braState === 'idle') braLoad(false).then(() => { if (S.tab === 'pistes' || S.tab === 'weather') render(); });
   const f = S.filt, st = station(), lifts = f.view === 'lifts';
-  return `<h2>${esc(st.name)}</h2>${liveBanner()}
+  return `<h2>${esc(st.name)}</h2>${braBannerHtml()}${liveBanner()}
   <input type="search" id="q" class="bigsearch" placeholder="🔍 Chercher ${lifts ? 'une remontée' : 'une piste'}" value="${esc(f.q)}" aria-label="Rechercher" autocomplete="off">
   <div class="seg" style="margin:10px 0"><button class="${lifts ? '' : 'on'}" data-action="view" data-v="pistes">Pistes (${st.pistes.length})</button><button class="${lifts ? 'on' : ''}" data-action="view" data-v="lifts">Remontées (${st.lifts.length})</button></div>
   ${lifts ? '' : `<div class="chips" style="margin-bottom:10px"><button class="chip${f.colors.length ? '' : ' on'}" data-action="allcolors">Toutes</button>
@@ -705,11 +706,12 @@ async function wxLoad(force) {
 function renderWeather() {
   if (wxState === 'idle') wxLoad(false);
   if (liveState === 'idle') liveLoad(false).then(() => { if (S.tab === 'weather' || S.tab === 'pistes') render(); });
+  if (braState === 'idle') braLoad(false).then(() => { if (S.tab === 'weather' || S.tab === 'pistes') render(); });
   const alt = WX.alts[wxAlt], d = wxData[wxAlt];
   const seg = `<div class="seg" style="margin:6px 0 12px">${[['base', `Station ${WX.alts.base} m`], ['top', `Sommet ${WX.alts.top} m`]].map(([k, t]) => `<button class="${wxAlt === k ? 'on' : ''}" data-action="wxalt" data-k="${k}">${t}</button>`).join('')}</div>`;
   const links = `<p class="mut">Pour les conditions mesurées par la station et le risque d'avalanche, consulte la source officielle : <a href="https://skipass.alpedhuez.com/meteo-espace-alpe-dhuez/" target="_blank" rel="noopener noreferrer">météo Espace Alpe d'Huez ↗</a> · <a href="https://meteofrance.com/meteo-montagne" target="_blank" rel="noopener noreferrer">Météo-France montagne ↗</a>.</p>`;
   if (wxState === 'loading' || wxState === 'idle') return `<h2>Météo · Alpe d'Huez</h2>${seg}<p class="mut">Chargement des prévisions…</p>`;
-  if (!d) return `<h2>Météo · Alpe d'Huez</h2>${seg}<div class="warn">Prévisions indisponibles : pas de réseau, ou service injoignable depuis cet appareil.</div><button class="btn sm" data-action="wxreload">Réessayer</button>${links}`;
+  if (!d) return `<h2>Météo · Alpe d'Huez</h2>${seg}${braCardHtml()}<div class="warn">Prévisions indisponibles : pas de réseau, ou service injoignable depuis cet appareil.</div><button class="btn sm" data-action="wxreload">Réessayer</button>${links}`;
   const days = wxDaily(d.ts), now = d.ts.find(e => new Date(e.time) >= Date.now() - 3600000) || d.ts[0], nd = now.data.instant.details;
   const [ic, txt] = symInfo((now.data.next_1_hours || now.data.next_6_hours)?.summary?.symbol_code), today = days.find(x => x.date === parisDate(Date.now())) || days[0];
   const hrs = d.ts.filter(e => new Date(e.time) >= Date.now() - 3600000 && e.data.next_1_hours).slice(0, 14);
@@ -718,6 +720,7 @@ function renderWeather() {
   <div class="card"><div class="row"><div style="font-size:46px;line-height:1">${ic}</div><div class="sp"><b style="font-size:26px">${Math.round(nd.air_temperature)} °C</b> <span class="mut">à ${alt} m</span><br><span class="mut">${esc(txt)} · vent ${Math.round(nd.wind_speed * 3.6)} km/h</span></div></div>
     <div class="mut" style="margin-top:6px">Aujourd'hui : ${today.tmin}° / ${today.tmax}° · précipitations ${String(today.precip).replace('.', ',')} mm${today.snow ? ` · neige ≈ ${today.snow} cm` : ''}</div>
     ${hrs.length ? `<div class="hrs">${hrs.map(e => `<div class="hr"><span class="mut">${String(parisHour(e.time)).padStart(2, '0')} h</span><span>${symInfo(e.data.next_1_hours.summary.symbol_code)[0]}</span><b>${Math.round(e.data.instant.details.air_temperature)}°</b></div>`).join('')}</div>` : ''}</div>
+  ${braCardHtml()}
   <h3>Jour par jour</h3>
   <div class="card">${days.map(x => { const [i2, t2] = symInfo(x.sym), h = wxHints(x); return `<div class="step"><div style="font-size:26px;width:34px;text-align:center">${i2}</div><div class="sp"><b>${esc(label(x.date))}</b> <span class="mut">${esc(t2)}</span><br>
       <span class="mut">${x.tmin}° / ${x.tmax}° · vent max ${x.wind} km/h${x.precip ? ` · ${String(x.precip).replace('.', ',')} mm` : ''}${x.snow ? ` · ❄ ≈ ${x.snow} cm` : ''}</span>${h.length ? `<br><span class="fit hard" style="font-weight:600">${esc(h[0])}</span>` : ''}</div></div>`; }).join('')}</div>

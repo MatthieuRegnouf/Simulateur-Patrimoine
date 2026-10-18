@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<!-- EXEMPLE DE TEST reconstitué d'après le descriptif technique de Météo-France (extraits « Belledonne », 26/10/2023) : ce n'est PAS un bulletin réel. -->
+<BULLETINS_NEIGE_AVALANCHE TYPEBULLETIN="BRA" ID="12" MASSIF="Grandes-Rousses" DATEBULLETIN="2026-02-01T14:00:00" DATEECHEANCE="2026-02-02T18:00:00" DATEVALIDITE="2026-02-02T18:00:00" DATEDIFFUSION="2026-02-01T12:36:12" AMENDEMENT="false">
+ <DateValidite>2026-02-02T18:00:00</DateValidite>
+ <CARTOUCHERISQUE>
+  <RISQUE RISQUE1="2" EVOLURISQUE1="" LOC1="&lt;2100" ALTITUDE="2100" RISQUE2="3" EVOLURISQUE2="2" LOC2="&gt;2100" RISQUEMAXI="3" COMMENTAIRE="Au-dessus de 2100m risque marqué évoluant en risque limité, plus bas risque limité." RISQUEMAXIJ2="2"/>
+  <PENTE NE="true" E="false" SE="false" S="true" SW="false" W="false" NW="true" N="false" COMMENTAIRE="Pentes les plus dangereuses"/>
+  <ACCIDENTEL>synthèse des risques de déclenchement skieur</ACCIDENTEL>
+  <NATUREL>synthèse des risques de départs spontanés</NATUREL>
+  <RESUME>Départs spontanés : synthèse. Déclenchements skieurs : synthèse.</RESUME>
+  <RisqueJ2>risque limité</RisqueJ2>
+  <CommentaireRisqueJ2>Tendance à J+2.</CommentaireRisqueJ2>
+  <AVIS/>
+ </CARTOUCHERISQUE>
+ <STABILITE><SitAvalTyp SAT1="1" SAT2=""/><TEXTE>Situation nivologique : texte de stabilité.</TEXTE></STABILITE>
+ <QUALITE><TEXTE>Texte de qualité de la neige.</TEXTE></QUALITE>
+ <NEIGEFRAICHE ALTITUDESS="1800"><NEIGE24H DATE="2026-01-30T00:00:00" SS24Min="0" SS24Max="5"/><NEIGE24H DATE="2026-01-31T00:00:00" SS24Min="20" SS24Max="30"/></NEIGEFRAICHE>
+</BULLETINS_NEIGE_AVALANCHE>
