@@ -1,0 +1,16 @@
+{
+  "_source": "https://skipass.alpedhuez.com/hiver/domaine-skiable/pistes-mythiques/ (page officielle « Les pistes mythiques »)",
+  "sarenne|black": {
+    "stats": ["Altitude de départ : 3 330 m (Pic Blanc)", "Longueur : 16 km", "Dénivelé : 1 820 m depuis le sommet du Pic Blanc"],
+    "info": "La plus longue piste noire d'Europe. Une première partie engagée en haute montagne, avant une longue descente jusqu'aux gorges de Sarenne. Destinée aux skieurs confirmés."
+  },
+  "tunnel|black": {
+    "stats": ["Altitude de départ : environ 3 000 m", "200 m de traversée à l'intérieur de la montagne", "Pente jusqu'à 35°"],
+    "info": "Sortie directe sur l'un des champs de bosses les plus raides du domaine. Piste noire engagée, réservée aux skieurs très expérimentés."
+  },
+  "la fare|black": {
+    "km": 4.7,
+    "stats": ["Longueur : 4,7 km", "Dénivelé : 720 m", "Exposition nord"],
+    "info": "La grande noire du secteur Oz-Vaujany : une longue descente technique au cœur des sapins."
+  }
+}

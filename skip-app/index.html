@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#0b5fff">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -17,6 +18,7 @@
   <div class="brand">⛷️ <b>SKIP</b></div>
   <select id="station" aria-label="Station"></select>
   <span id="net" class="net" hidden>Hors ligne</span>
+  <button class="gear" data-action="settings" aria-label="Réglages et sources">⚙︎</button>
   <button class="sos" data-action="sos" aria-label="Appeler le 112">SOS</button>
 </header>
 <main id="view"></main>
@@ -25,13 +27,35 @@
   <button data-tab="route"><i>🧭</i>Itinéraire</button>
   <button data-tab="day"><i>📍</i>Ma journée</button>
   <button data-tab="meet"><i>👥</i>Rencontres</button>
-  <button data-tab="about"><i>⭐</i>SKIP</button>
+  <button data-tab="weather"><i>⛅</i>Météo</button>
 </nav>
 <div id="sheet" class="sheet" hidden></div>
 <div id="pocket" class="pocket" hidden></div>
+<div id="prompt" class="prompt" hidden role="status"></div>
+<div id="nav" class="nav" hidden></div>
 <div id="toast" class="toast" hidden></div>
+<script src="config.js"></script>
+<script src="shell.js"></script>
 <script src="data.js"></script>
+<script src="graph.js"></script>
 <script src="engine.js"></script>
+<script src="nav.js"></script>
+<script src="mvt.js"></script>
+<script src="vendor/pmtiles.js"></script>
+<script src="map.js"></script>
+<script src="offline.js"></script>
+<script src="voice.js"></script>
+<script src="bra.js"></script>
+<script src="sun.js"></script>
+<script src="dem.js"></script>
+<script src="pois.js"></script>
+<script src="parcours.js"></script>
+<script src="sunui.js"></script>
+<script src="discover.js"></script>
+<script src="navui.js"></script>
+<script src="trackcalc.js"></script>
+<script src="outing.js"></script>
+<script src="social.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

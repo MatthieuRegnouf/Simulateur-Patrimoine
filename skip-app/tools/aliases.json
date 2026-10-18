@@ -1,0 +1,14 @@
+{
+  "_doc": "Alias de noms : nom OpenStreetMap normalisé -> nom officiel normalisé (voir norm() dans build_graph.py)",
+  "pistes": {},
+  "lifts": {
+    "pic blanc 1": "pic blanc 1 et 2",
+    "pic blanc 2": "pic blanc 1 et 2",
+    "poutran 1": "poutran",
+    "poutran 2": "poutran",
+    "tkf auberts": "auberts",
+    "tapis bambin": "bambins",
+    "tapis escargot": "escargots",
+    "pic blanc 3": "pic blanc"
+  }
+}
