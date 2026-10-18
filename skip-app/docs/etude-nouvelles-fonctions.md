@@ -1,5 +1,7 @@
 # Étude de faisabilité : soleil, hors-piste, parcours découverte, avalanche, restaurants
 
+> **Mise à jour (18/10/2026)** : les fonctions « Parcours prêts » et « Soleil / ombre » (V1 + V2 avec ombres du relief) sont implémentées ; voir README et SOURCES. L'API du bulletin d'avalanche est identifiée (voir SOURCES) mais attend une clé.
+
 Étude, pas de mise en œuvre. Date : 18/10/2026. Les chiffres « mesurés » viennent des données de l'appli (graphe OpenStreetMap, fond de carte, planificateur). Les chiffres « sources » viennent de pages web citées ; quand une source diverge d'une autre, c'est dit. Tout ce qui est une hypothèse est marqué **[À VÉRIFIER]**.
 
 ---

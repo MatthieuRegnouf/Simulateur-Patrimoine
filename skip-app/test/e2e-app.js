@@ -113,6 +113,35 @@ const ROOT = path.join(__dirname, '..'), PORT = 8094, URL = `http://localhost:${
       const dsk = await open(); await dsk.p.click('[data-action=sos]'); assert.match(await dsk.p.textContent('#sheet'), /ne semble pas pouvoir passer d'appel/); assert.match(await dsk.p.textContent('#sheet'), /04 76 80 37 38/); ok('appareil sans téléphonie : numéro lisible pour le composer ailleurs + conseil alternatif');
       await dsk.ctx.close();
     }
+    /* ---- 6c. parcours prêts et soleil / ombre ---- */
+    {
+      const { ctx, p } = await open({ permissions: ['geolocation'], geolocation: { latitude: 45.0917, longitude: 6.07, accuracy: 10 } });
+      await p.click('[data-tab=route]'); await p.click('[data-action=rview][data-v=ready]');
+      const cards = await p.$$eval('#view .piste', e => e.map(x => x.textContent)); assert.ok(cards.length >= 5 && cards.some(c => /Demi-journée/.test(c)) && cards.some(c => /Journée/.test(c))); assert.match(await p.textContent('#view'), /3 jours pour découvrir/); assert.match(await p.textContent('#view'), /Une semaine de découverte/); ok(`Parcours prêts : ${cards.length} parcours (demi-journée, journée) et 2 programmes (3 jours, semaine)`);
+      await p.click('[data-action=pcopen][data-id=pic-blanc-sarenne]'); const det = await p.textContent('#view');
+      for (const w of ['Niveau requis', 'Horaires et retour', 'Points d\'intérêt', 'Pauses possibles', 'Remontées et pistes', 'non relu par la station', 'Navettes et bus : information non disponible']) assert.ok(det.includes(w), w);
+      assert.ok(/\d h \d{2}/.test(det) && /km skiés/.test(det)); ok('fiche d\'un parcours : niveau requis, durée et distance, horaires et retour, points d\'intérêt, pauses, pistes et remontées, mention « non relu »');
+      await p.click('[data-action=pcgo][data-id=pic-blanc-sarenne]'); await p.waitForSelector('#ntop'); assert.equal(await p.evaluate(() => plan.parcoursId), 'pic-blanc-sarenne'); assert.ok(await p.$('#nmap canvas')); const n1 = await p.evaluate(() => plan.steps.length); ok(`« Ouvrir le GPS » sur un parcours prêt : même navigation que le sur-mesure (${n1} étapes)`);
+      await p.click('[data-action=nquit]'); assert.match(await p.textContent('#planres'), /Pic Blanc et Sarenne/); assert.match(await p.textContent('#planres'), /non relu par la station/); ok('retour au résumé : le parcours choisi (pas un calcul sur mesure) avec carte et étapes');
+      await p.click('[data-action=rview][data-v=ready]'); await p.click('[data-action=pcback]').catch(() => {}); await p.click('[data-action=pcopen][data-prog=trois-jours][data-day="0"]'); assert.match(await p.textContent('#view'), /Jour 1 sur 3/); await p.click('[data-action=pcdone]');
+      assert.deepEqual(await p.evaluate(() => S.programs['trois-jours'].done), [0]); await p.click('[data-action=pcback]'); assert.match(await p.textContent('#view'), /1\/3 faits/); ok('programme multi-jours : progression par jour enregistrée');
+      // fermeture : une remontée du parcours fermée => avertissement et variante
+      await p.evaluate(() => { const pl = pcPlan('premiers-virages'), ls = pl.steps.filter(s => s.kind === 'lift' && s.o), lift = ls[Math.floor(ls.length / 2)]; live = { data: { summary: { seasonOpen: true }, lifts: [{ id: lift.o, state: 'closed' }], pistes: [], source: { feedUpdated: new Date().toISOString() } }, at: Date.now() }; S.routeView = 'ready'; pcCtx = { id: 'premiers-virages' }; render(); });
+      assert.match(await p.textContent('#view'), /Fermé aujourd'hui sur ce parcours/); await p.click('[data-action=pcvariant]'); assert.match(await p.textContent('#planres'), /Variante calculée/); ok('élément fermé : avertissement et variante calculée, clairement distinguée du parcours préparé');
+      await ctx.close();
+    }
+    /* ---- 6d. soleil / ombre (date figée au 1er février, fuseau de Paris) ---- */
+    {
+      const { ctx, p } = await open({ timezoneId: 'Europe/Paris' }, async pg => { await pg.clock.setFixedTime(new Date('2026-02-01T07:00:00Z')); });
+      await p.click('[data-tab=route]');
+      // soleil : l'estimation figure partout, la préférence change vraiment l'itinéraire
+      await p.evaluate(() => { live = null; S.rf.mode = 'felt'; S.rf.lo = 2; S.rf.hi = 6; S.rf.when = { day: 0, time: '09:00' }; save(); });
+      const run = async sun => p.evaluate(async sun => { S.rf.sun = sun; generate(false); return { pct: plan.sunInfo.pct, total: plan.total }; }, sun);
+      const rs = await run(1), rn = await run(0), ro = await run(-1); assert.ok(rs.pct > ro.pct, JSON.stringify([rs, rn, ro])); ok(`départ 9 h : préférence soleil ${rs.pct} % au soleil, neutre ${rn.pct} %, ombre ${ro.pct} %`);
+      await p.evaluate(() => { S.rf.sun = 1; generate(false); }); await p.waitForSelector('#planres'); const sm = await p.textContent('#planres'); assert.match(sm, /% au soleil/); assert.match(await p.textContent('#view'), /Hors arbres et bâtiments/); ok('résumé : part du parcours au soleil, avec les limites du modèle affichées (arbres, bâtiments, neige)');
+      await p.evaluate(() => pisteSheet('sarenne-black')); await p.click('summary:has-text("Caractéristiques")'); assert.match(await p.textContent('#sheet'), /Soleil \(estimé/); assert.match(await p.textContent('#sheet'), /Matin : .*\n?.*Après-midi/s); ok('fiche piste : soleil estimé matin / midi / après-midi');
+      await ctx.close();
+    }
     /* ---- 7. sortie enregistrée : démarrage, descente par le tracé GPS, pause, arrêt, bilan, rattachement à Ma journée ---- */
     {
       const { ctx, p } = await open({ permissions: ['geolocation'], geolocation: { latitude: 45.0917, longitude: 6.07, accuracy: 8 } });

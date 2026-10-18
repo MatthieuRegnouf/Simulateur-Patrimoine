@@ -11,14 +11,14 @@ const COLORS = ['green', 'blue', 'red', 'black'], RANK = { green: 0, blue: 1, re
 const defaults = () => ({
   station: 'alpe', tab: 'pistes', level: 5, levelSet: false, audio: true, voice: { name: '', rate: 0.95, volume: 1 },
   profile: { pseudo: '', discipline: 'ski', wants: [], status: 'slopes', slots: [], zone: '', socials: {} },
-  intent: null, me: null, invites: { sent: [], recv: [] },
+  intent: null, me: null, invites: { sent: [], recv: [] }, routeView: 'custom', programs: {},
   votes: {}, vlog: [], hearts: [], log: {}, days: {}, outing: null, route: null, chat: {}, screen: {}, friends: {},
   filt: { colors: [], q: '', sector: '', sort: 'color', fit: false, open: false, view: 'pistes', mine: false },
   waits: [], waitMargin: 0, notif: { enabled: false, sys: false, lift: true, evening: true, eveningTime: '17:30', max: 3 }, pro: { d: '', ids: [], n: 0, evening: false },
-  rf: { start: '', end: '', budget: 120, speed: 'medium', mode: 'profile', lo: 2, hi: 6, scale: 10, colors: ['green', 'blue', 'red'], walk: true, variant: 0 }
+  rf: { start: '', end: '', budget: 120, speed: 'medium', mode: 'profile', lo: 2, hi: 6, scale: 10, sun: 0, when: { day: 0, time: '' }, colors: ['green', 'blue', 'red'], walk: true, variant: 0 }
 });
 let S = (() => { try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return defaults(); } })();
-S.voice = { ...defaults().voice, ...S.voice }; S.invites = { sent: [], recv: [], ...(S.invites || {}) }; if (!S.days) S.days = {}; S.notif = { ...defaults().notif, ...S.notif }; S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf };
+S.voice = { ...defaults().voice, ...S.voice }; S.invites = { sent: [], recv: [], ...(S.invites || {}) }; if (!S.days) S.days = {}; S.notif = { ...defaults().notif, ...S.notif }; S.profile = { ...defaults().profile, ...S.profile }; S.filt = { ...defaults().filt, ...S.filt }; S.rf = { ...defaults().rf, ...S.rf }; S.rf.when = { ...defaults().rf.when, ...S.rf.when };
 const savedRf = (() => { try { return JSON.parse(localStorage.getItem(KEY) || '{}').rf || null; } catch { return null; } })();
 if (savedRf && savedRf.scale !== 10 && savedRf.lo !== undefined) {   // ancien réglage de difficulté sur 5 : conversion explicite, annoncée à l'utilisateur (les notes de pistes étaient déjà sur 10)
   const [a, b] = Engine.levelRange(Math.min(5, Math.max(1, Math.round(savedRf.lo) || 2)), Math.min(5, Math.max(1, Math.round(savedRf.hi) || 3)));
@@ -185,7 +185,7 @@ function charsHtml(p, i) {
   const tips = tipsFor(p, i);
   return `<div class="data">
     ${row('Pente moyenne', o.avg != null ? Math.round(o.avg) + ' %' : '—')}${row('Pente maximale (tronçon)', o.max != null ? o.max + ' %' : '—')}
-    ${row('Exposition', o.expo ? o.expo + (/Sud/.test(o.expo) ? ' · ensoleillée' : /Nord/.test(o.expo) ? ' · à l\'ombre' : '') : '—')}${row('Largeur', 'non fournie')}
+    ${row('Exposition', o.expo ? o.expo + (/Sud/.test(o.expo) ? ' · ensoleillée' : /Nord/.test(o.expo) ? ' · à l\'ombre' : '') : '—')}${row('Largeur', 'non fournie')}${(() => { const ss = pisteSunSlots(p.id); return ss ? row(`Soleil (estimé${ss.typical ? ', 1er février' : ''})`, ss.slots.map(x => `${x.name} : ${x.s == null ? '—' : sunTag(x.s)}`).join('<br>')) : ''; })()}
     ${row('Neige habituelle', esc(snow || 'pas assez de votes (3 minimum)'))}${row('Niveau technique estimé', fmt1(o.level) + '/10')}
     ${row('État récent (3 j)', esc(recent || 'aucun signalement'))}${row('Longueur', p.km ? kmText(p.km) : '—')}
     ${row('Altitudes', alts(p) || '—')}${row('Dénivelé', p.denivele ? p.denivele + ' m' : Engine.drop(p) && !p.official ? Engine.drop(p) + ' m' : '—')}
@@ -352,6 +352,7 @@ function stepsHtml(pl) {
     const head = s.kind === 'lift' ? `🚡 ${esc(liftType(s))} · ${esc(s.name)}` : s.kind === 'piste' ? `Piste ${colorName(s.color).toLowerCase()} · ${esc(stepName(s))}` : s.kind === 'walk' ? '🚶 À pied (chaussures de ski)' : '↝ Liaison à ski';
     const info = (s.o && (s.kind === 'piste' ? pisteOf(s.o) : liftOf(s.o))) ? `<button class="btn sm ghost" data-action="openstep" data-i="${i}" aria-label="Détails">ℹ︎</button>` : '';
     return `<div class="step${selStep === i ? ' sel' : ''}" data-action="selstep" data-i="${i}"><div class="num" style="background:${col}">${i + 1}</div><div class="sp"><b>${head}</b>
+      ${s.kind === 'piste' && plan && plan.sunInfo && plan.sunInfo.per.find(x => x.i === i && x.label) ? `<span class="mut" style="display:block">${sunTag(plan.sunInfo.per.find(x => x.i === i).s)} à l'heure de passage</span>` : ''}
       ${s.kind === 'piste' ? `<span class="mut" style="display:block"><span class="sq ${s.color}" style="display:inline-block;vertical-align:-2px"></span> Couleur officielle : ${colorName(s.color).toLowerCase()} · ${esc(feltLine(s.o))}</span>` : ''}
       <span class="mut" style="display:block">${stepTimes(s)}</span>
       ${s.kind === 'lift' && s.o ? `<span class="mut" style="display:block">${esc(stateText(liveItem('lift', s.o)))}${liveItem('lift', s.o) ? ' · ' + esc(liveTag()) : ''}</span>` : ''}
@@ -374,9 +375,10 @@ function planSummary(pl) {
   const st0 = pl.steps[0], stN = pl.steps[pl.steps.length - 1], t = pl.times, partial = t.waitKnown < t.lifts;
   return `<div class="mut" style="margin:0 0 8px">De <b>${esc(st0.fromName)}</b> à <b>${esc(stN.toName)}</b> · ${pl.steps.length} étapes</div>
     <div class="stats"><div><b>${fmtApprox(pl.total).replace('≈ ', '≈')}</b><span>durée${partial ? '*' : ''}</span></div><div><b>${pl.descents}</b><span>pistes</span></div><div><b>${String(pl.km).replace('.', ',')}</b><span>km skiés</span></div><div><b>${pl.down}</b><span>m descendus</span></div></div>
-    <div class="chips" style="margin-top:8px">${Object.entries(cols).map(([c, n]) => `<span class="chip" style="cursor:default"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${n}</span>`).join('')}${pl.walkMin ? `<span class="chip" style="cursor:default">🚶 ${pl.walkMin} min</span>` : ''}</div>
+    <div class="chips" style="margin-top:8px">${Object.entries(cols).map(([c, n]) => `<span class="chip" style="cursor:default"><span class="sq ${c}" style="display:inline-block;vertical-align:-2px"></span> ${n}</span>`).join('')}${pl.walkMin ? `<span class="chip" style="cursor:default">🚶 ${pl.walkMin} min</span>` : ''}${pl.sunInfo && pl.sunInfo.pct != null ? `<span class="chip" style="cursor:default">☀️ ${pl.sunInfo.pct} % au soleil</span>` : ''}</div>
     <details style="margin-top:8px"><summary class="mut">Détail des durées</summary>
       <div class="mut" style="margin-top:4px">Descentes ≈ ${t.descent} min · liaisons ≈ ${t.link} min · remontées ${t.ride} min · attentes ${t.waitKnown ? t.wait + ' min connues pour ' + t.waitKnown + ' remontée' + (t.waitKnown > 1 ? 's' : '') + ' sur ' + t.lifts : 'inconnues'}${partial ? ' (* hors attente inconnue)' : ''}. Remontées : durées officielles ; descentes et marche : estimées d'après la longueur.</div>
+      ${pl.sunInfo && pl.sunInfo.pct != null ? `<div class="mut" style="margin-top:6px">Soleil : estimation à l'heure de passage prévue (départ ${esc(new Date(pl.opt.startAt || Date.now()).toLocaleString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}), d'après l'orientation des pistes${pl.sunInfo.relief ? ' et les ombres du relief (grille de 150 m)' : ''}${pl.sunInfo.cloud != null ? `, nuages prévus ${Math.round(pl.sunInfo.cloud * 100)} %` : ', nuages non pris en compte'}. Hors arbres et bâtiments ; ne dit rien de l'état de la neige.</div>` : ''}
       ${pl.opt.mode === 'felt' ? levelSummary(pl) : ''}
       ${pl.offColor ? `<div class="mut" style="margin-top:6px">dont ${pl.offColor} min sur des pistes plus faciles, pour relier les secteurs.</div>` : ''}
       ${Math.abs(pl.total - pl.opt.budget) > pl.opt.budget * 0.15 ? `<div class="mut" style="margin-top:6px">Durée demandée : ${fmtMin(pl.opt.budget)}. C'est le meilleur parcours trouvé.</div>` : ''}</details>`;
@@ -393,7 +395,9 @@ function renderRoute() {
   const opt = p => `<option value="${esc(p.name)}">${esc(p.name)} (${p.alt} m)</option>`;
   const modeBtn = (m, t) => `<button class="${f.mode === m ? 'on' : ''}" data-action="rf" data-k="mode" data-v="${m}">${t}</button>`;
   const eff = effectiveForm();
-  return `<h2>Mon itinéraire</h2>${scaleNoticeHtml()}
+  const seg = `<div class="seg" style="margin-bottom:10px"><button class="${S.routeView !== 'ready' ? 'on' : ''}" data-action="rview" data-v="custom">Sur mesure</button><button class="${S.routeView === 'ready' ? 'on' : ''}" data-action="rview" data-v="ready">Parcours prêts</button></div>`;
+  if (S.routeView === 'ready') return `<h2>Mon itinéraire</h2>${seg}${pcCtx ? parcoursDetailHtml(pcCtx.id) : discoverHtml()}`;
+  return `<h2>Mon itinéraire</h2>${seg}${scaleNoticeHtml()}
   <div class="card">
     <label class="mut" for="rstart">Départ</label>
     <select class="f" id="rstart" data-bind="rstart">${list.map(p => opt(p).replace('<option ', `<option ${p.i === si ? 'selected ' : ''}`)).join('')}</select>
@@ -411,12 +415,15 @@ function renderRoute() {
       <div class="mut" style="margin-top:8px">Ta vitesse</div>
       <div class="seg" style="margin-top:4px">${[['slow', '🐢 Lent'], ['medium', '⛷ Moyen'], ['fast', '⚡ Rapide']].map(([k, t]) => `<button class="${eff.speed === k ? 'on' : ''}" data-action="rf" data-k="speed" data-v="${k}">${t}</button>`).join('')}</div>
       <div class="row" style="gap:8px;margin-top:8px"><label class="mut" for="wmargin">Marge d'attente par remontée</label><select class="f" id="wmargin" style="width:auto">${[[0, 'aucune'], [3, '3 min'], [5, '5 min'], [8, '8 min']].map(([v, t]) => `<option value="${v}" ${S.waitMargin === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div class="mut" style="margin-top:10px">Soleil</div><div class="seg" style="margin-top:4px">${[[0, 'Peu importe'], [1, '☀️ Soleil'], [-1, '🌑 Ombre']].map(([v, t]) => `<button class="${(f.sun || 0) === v ? 'on' : ''}" data-action="rsun" data-v="${v}">${t}</button>`).join('')}</div>
+      <div class="row" style="gap:8px;margin-top:8px"><label class="mut" for="rtime">Départ à</label><input type="time" id="rtime" value="${esc(f.when.time || '')}" style="width:auto"><button class="chip${!f.when.day ? ' on' : ''}" data-action="rday" data-v="0">Aujourd'hui</button><button class="chip${f.when.day ? ' on' : ''}" data-action="rday" data-v="1">Demain</button></div>
+      <div class="mut">L'heure sert à estimer le soleil sur chaque piste au moment où tu y passes.</div>
       ${f.mode === 'profile' && profCrit().walk === false ? '' : `<label class="chk"><input type="checkbox" data-bind="rwalk" ${f.walk ? 'checked' : ''}> Autoriser de courts chemins à pied</label>`}
       <div class="mut">Les attentes connues sont toujours utilisées ; la marge ne s'applique qu'aux remontées sans donnée.</div></details>
     <div style="height:10px"></div><button class="btn" data-action="plan">Créer mon itinéraire</button>
   </div>
   ${planMsg ? `<div class="warn">${esc(planMsg)}</div>` : ''}
-  ${plan ? `<div class="card" id="planres"><h3 style="margin-top:0">Ton itinéraire</h3>${keyStepsHtml(plan)}
+  ${plan ? `<div class="card" id="planres"><h3 style="margin-top:0">${plan.parcoursId ? esc(specOf(plan.parcoursId)?.title || 'Parcours') : 'Ton itinéraire'}</h3>${plan.variantOf ? `<div class="mut" style="margin-bottom:6px">Variante calculée (sans les éléments fermés) de « ${esc(plan.variantOf)} ».</div>` : plan.parcoursId ? '<div class="mut" style="margin-bottom:6px">Parcours prêt proposé par SKIP, non relu par la station.</div>' : ''}${keyStepsHtml(plan)}
       <button class="btn gps" data-action="nstart">🧭 Ouvrir le GPS</button><div style="height:10px"></div>${planSummary(plan)}</div>
     <div class="card">${previewHtml()}</div>
     <details class="card" style="padding:10px 14px"><summary><b>Étapes écrites</b></summary><div style="margin-top:6px">${stepsHtml(plan)}</div></details>
@@ -431,20 +438,20 @@ const edgeLevel = e => { const p = e.o && pisteOf(e.o); if (p) { const i = info(
 function computePlan(q) {
   const lo = Math.min(q.lo, q.hi), hi = Math.max(q.lo, q.hi), ctx = routeCtx();
   return Engine.planRoute(NET, { start: q.start, end: q.end, budget: q.budget, speed: q.speed, colors: q.colors, walk: q.walk, variant: q.variant, blocked: e => !!e.o && isClosed(e.k === 'lift' ? 'lift' : 'piste', e.o),
-    waitOf, pref: prefOf(ctx, hi), ...(q.mode === 'felt' ? { levelOf: edgeLevel, lo, hi } : {}) });
+    waitOf, pref: prefOf(ctx, hi), sun: sunForPlanner(q.sun, q.startAt), ...(q.mode === 'felt' ? { levelOf: edgeLevel, lo, hi } : {}) });
 }
 function generateAt(v) {
   const f = S.rf; f.variant = v;
   const si = startIndex(f.start), ei = f.end ? startIndex(f.end) : si, eff = effectiveForm();
   if (f.mode === 'profile' && eff.profile.missing.includes('level')) { plan = null; planMsg = 'Pour utiliser ton profil, indique ton niveau (seule information indispensable), ou choisis un autre mode.'; save(); render(); return; }
-  const req = { mode: eff.mode, lo: eff.lo, hi: eff.hi, colors: eff.colors, walk: eff.walk, speed: eff.speed }, ctx = routeCtx();
+  const req = { mode: eff.mode, lo: eff.lo, hi: eff.hi, colors: eff.colors, walk: eff.walk, speed: eff.speed, sun: S.rf.sun || 0, startAt: sunStart().getTime() }, ctx = routeCtx();
   const r = computePlan({ ...req, start: si, end: ei, budget: f.budget, variant: f.variant });
   planMsg = '';
   if (r.error) {
     plan = null;
     planMsg = eff.mode === 'color' && !eff.colors.length ? 'Choisis au moins une couleur de piste.' : !eff.walk ? "Aucun itinéraire sans marche depuis ce départ : autorise les courts chemins à pied." : "Aucun itinéraire trouvé avec ces choix : essaie une durée plus longue, une autre couleur ou un autre départ.";
   } else {
-    plan = r; plan.req = req; plan.opt.lo = eff.lo; plan.opt.hi = eff.hi; selStep = null;
+    plan = r; plan.req = req; plan.opt.lo = eff.lo; plan.opt.hi = eff.hi; plan.opt.sun = req.sun; plan.opt.startAt = req.startAt; plan.sunInfo = planSun(plan, req.startAt); selStep = null;
     if (eff.profile) plan.opt.profile = { used: eff.profile.used.map(u => u.label + ' → ' + u.effect), ignored: eff.profile.ignored.map(i => i.label), adjusted: hasTmp() };
     plan.reasons = explain(plan, ctx);
   }
@@ -872,6 +879,8 @@ document.addEventListener('click', e => {
     case 'heart': S.hearts = S.hearts.includes(d.id) ? S.hearts.filter(h => h !== d.id) : [...S.hearts, d.id]; save(); pisteSheet(d.id); render(); break;
     case 'skied': addLog({ type: 'piste', cands: [d.id], altFrom: pisteOf(d.id).altFrom, altTo: pisteOf(d.id).altTo, t: Date.now(), manual: true }); toast('Ajoutée à ta journée'); break;
     case 'rf': if (d.k === 'speed' && S.rf.mode === 'profile') (S.rf.tmp = S.rf.tmp || {}).speed = d.v; else S.rf[d.k] = d.k === 'budget' ? +d.v : d.v; save(); render(); break;
+    case 'rsun': S.rf.sun = +d.v; save(); render(); break;
+    case 'rday': S.rf.when.day = +d.v; save(); render(); break;
     case 'scaleok': delete S.scaleNotice; save(); render(); break;
     case 'rcolor': S.rf.colors = S.rf.colors.includes(d.c) ? S.rf.colors.filter(c => c !== d.c) : [...S.rf.colors, d.c]; save(); render(); break;
     case 'plan': generate(!!d.next); break;
@@ -901,7 +910,7 @@ document.addEventListener('click', e => {
     case 'send': { const i = $('#chatin'), v = i.value.trim(); if (!v) break;
       (S.chat[chatKey()] = S.chat[chatKey()] || []).push({ who: S.profile.pseudo || 'Skieur', lvl: S.level, status: S.profile.status, t: hhmm(Date.now()), text: v, me: true }); save(); render(); break; }
     case 'reset': if (confirm('Effacer toutes tes données SKIP ?')) { localStorage.removeItem(KEY); location.reload(); } break;
-    default: if (!navAction(d) && !outingAction(d) && typeof socialAction === 'function') socialAction(d);
+    default: if (!navAction(d) && !outingAction(d) && !discoverAction(d) && typeof socialAction === 'function') socialAction(d);
   }
 });
 document.addEventListener('input', e => {
@@ -924,6 +933,7 @@ document.addEventListener('change', e => {
   else if (b === 'pzone') { S.profile.zone = t.value; save(); }
   else if (b === 'rstart') { S.rf.start = t.value; save(); }
   else if (b === 'rend') { S.rf.end = t.value; save(); }
+  else if (t.id === 'rtime') { S.rf.when.time = t.value; save(); }
   else if (b === 'rwalk') { S.rf.walk = t.checked; save(); }
   else if (b === 'ptmpwalk') { (S.rf.tmp = S.rf.tmp || {}).walk = t.checked ? true : undefined; if (!t.checked) delete S.rf.tmp.walk; save(); render(); }
   else if (b === 'pvnet') { showNet = t.checked; pvMap && pvMap.showDomain(showNet); }

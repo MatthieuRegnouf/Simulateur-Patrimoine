@@ -217,6 +217,7 @@ const arcAllowed = (a, o) => {
             sc += reuse ? -c * 2 : c * (a.e.k === 'piste' ? 1 : 0.3);
             if (a.e.k === 'piste') { if (o.levelOf ? o.levelOf(a.e).level < o.lo - 0.5 : !o.colors.includes(a.e.c)) sc -= c * 3; }   // hors de la cible : seulement en dernier recours
             if (o.pref) sc += o.pref(a.e) * c;                                    // préférences (coups de cœur, notes personnelles)
+            if (o.sun && a.e.k === 'piste') sc += o.sun.w * (o.sun.score(a.e, s.t + c / 2) - 0.45) * c;   // soleil / ombre à l'heure de passage prévue (w > 0 : soleil, w < 0 : ombre)
             if (a.e.k === 'piste' && a.e.n) { const same = chain(s, x => x.e.n === a.e.n); sc += !same ? 0.5 : (s.arc.e.n === a.e.n ? 0 : -6); }
           } else if (a.mode === 'walk') sc -= c * 3.5;
           else sc -= 0.2 + reuse * 3 + w * 0.8;
@@ -229,6 +230,23 @@ const arcAllowed = (a, o) => {
     if (!best) return { error: 'none' };
     const arcsSeq = []; for (let s = best; s.prev; s = s.prev) arcsSeq.unshift(s.arc);
     return buildSteps(net, arcsSeq, o, speed);
+  }
+
+  /* Recrée un itinéraire à partir d'une liste [[id de tronçon, sens]] : utilisé par les parcours préparés. Renvoie { error } si le réseau a changé et que l'enchaînement n'est plus valide. */
+  function planFromArcs(net, list, o = {}) {
+    if (!net.arcIdx) { net.arcIdx = new Map(); net.arcs.forEach(a => net.arcIdx.set(a.e.id + ':' + (a.rev ? 1 : 0), a)); }
+    const seq = [];
+    for (const [id, rev] of list) { const a = net.arcIdx.get(id + ':' + (rev ? 1 : 0)); if (!a || (seq.length && seq[seq.length - 1].to !== a.from)) return { error: 'arcs' }; seq.push(a); }
+    if (!seq.length) return { error: 'arcs' };
+    return buildSteps(net, seq, { colors: ['green', 'blue', 'red', 'black'], walk: true, ...o, start: seq[0].from, end: seq[seq.length - 1].to }, o.speed || 'medium');
+  }
+  /* Temps minimal (min) pour rejoindre `end` depuis chaque nœud, avec les mêmes règles que le planificateur */
+  function returnTimes(net, end, o = {}) {
+    const speed = o.speed || 'medium', rev = net.nodes.map(() => []);
+    net.arcs.forEach(a => { if (arcAllowed(a, { walk: true, colors: ['green', 'blue', 'red', 'black'], ...o })) rev[a.to].push(a); });
+    const t = net.nodes.map(() => Infinity); t[end] = 0; const pq = [[0, end]];
+    while (pq.length) { pq.sort((x, y) => x[0] - y[0]); const [d, u] = pq.shift(); if (d > t[u]) continue; for (const a of rev[u]) { const nd = d + arcMin(a, speed); if (nd < t[a.from]) { t[a.from] = nd; pq.push([nd, a.from]); } } }
+    return t;
   }
 
   // Regroupe les arcs consécutifs d'une même piste / remontée / marche en étapes lisibles
@@ -267,6 +285,7 @@ const arcAllowed = (a, o) => {
     const times = { descent: sum(pis, s => s.minF), link: sum(steps.filter(s => s.kind === 'walk' || s.kind === 'link'), s => s.minF), ride: sum(lf, s => s.rideF), wait: sum(lf, s => s.wait?.min || 0),
       lifts: lf.length, waitKnown: lf.filter(s => s.wait).length };
     return {
+      arcs: seq.map(a => [a.e.id, a.rev ? 1 : 0]),   // l'enchaînement exact, pour recréer le même itinéraire (parcours préparés, partage)
       steps, total: Math.round(totalF), times, opt: { start: o.start, end: o.end ?? o.start, wait: !!o.waitOf, budget: o.budget, speed, colors: o.colors, walk: o.walk !== false, variant: o.variant || 0, mode: o.levelOf ? 'felt' : 'color', lo: o.lo, hi: o.hi },
       km: Math.round(pis.reduce((a, s) => a + s.m, 0) / 100) / 10, descents: pis.length,
       down: pis.reduce((a, s) => a + Math.max(0, s.altFrom - s.altTo), 0), up: steps.filter(s => s.kind === 'lift').reduce((a, s) => a + Math.max(0, s.altTo - s.altFrom), 0),
@@ -275,6 +294,6 @@ const arcAllowed = (a, o) => {
     };
   }
 
-  return { descending, climbGain, LEVELS, levelOf, levelRange, reliability, buildNet, startPoints, nearestNode, planRoute, nodeName, arcMin, WALK_KMH, SPEED_KMH, COLOR_LABEL, COLOR_LEVEL, LIFT_GAP_M, label, fit, estMin, stepMin, drop, gap, summary, distM, newTracker, onFix };
+  return { descending, climbGain, LEVELS, levelOf, levelRange, reliability, buildNet, startPoints, nearestNode, planRoute, planFromArcs, returnTimes, nodeName, arcMin, WALK_KMH, SPEED_KMH, COLOR_LABEL, COLOR_LEVEL, LIFT_GAP_M, label, fit, estMin, stepMin, drop, gap, summary, distM, newTracker, onFix };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;

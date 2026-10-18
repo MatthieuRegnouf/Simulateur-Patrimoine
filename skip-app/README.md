@@ -77,3 +77,8 @@ Les prévisions viennent de l'API publique MET Norway (`api.met.no`, autorise la
 - **Rencontres** : intention du moment (valable le jour même) distincte du profil permanent (niveau, envies, disponibilités, zone) ; compatibilité lisible d'un coup d'œil.
 - **Rencontres › Amis et invitations** (ancien onglet Partage) : invitations par lien (`#invite=`), réponse (`#accept=`), mise à jour (`#hello=`) ; sans serveur, aucune notification : l'invitant n'est prévenu que s'il ouvre le lien de réponse. Pas d'annuaire : la recherche porte sur les personnes déjà connues de l'appareil.
 - Tests : `node --test test/*.test.js` ; `node test/e2e.js`, `node test/e2e-nav.js`, `node test/e2e-app.js`.
+
+### Parcours prêts et soleil
+- Itinéraire › **Parcours prêts** : 5 parcours (2 demi-journées, 3 journées) et 2 programmes (3 jours, semaine), avec niveau requis, durée, horaires et retour, pauses possibles ; « Ouvrir le GPS » utilise la même navigation. Régénérer : `node tools/build_parcours.js > parcours.js`.
+- **Soleil / ombre** : option « Soleil » (peu importe · soleil · ombre) et heure de départ dans les options avancées ; part du parcours au soleil dans le résumé ; soleil estimé sur chaque fiche de piste. Régénérer le relief : `python3 tools/build_dem.py`.
+- Tests : `node --test test/*.test.js` (dont `sun.test.js`, `parcours.test.js`), `node test/e2e-app.js`.

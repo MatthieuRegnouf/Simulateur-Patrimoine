@@ -73,3 +73,16 @@ Les identifiants de remontées sont ceux de `data.js`. L'appli affiche alors « 
 - **112** : numéro d'urgence européen (toute situation, hors pistes aussi), affiché à part ; il ne remplace pas le numéro du domaine pour un accident sur piste.
 - À revérifier chaque saison (la valeur est dans `data.js` > `sos`, générée par `tools/import_alpe.py`). Pour une autre station sans numéro vérifié, l'appli le dit et ne propose que le 112.
 - Ancien dysfonctionnement : le bouton passait par `confirm()` puis `location.href = 'tel:112'`, bloqués dans une page intégrée (aperçu), et n'offrait que le 112. Désormais : fenêtre « Secours » avec liens `tel:` classiques (ouvrent le composeur du téléphone, aucun appel automatique), numéro affiché et copiable, et conseil si l'appareil ne peut pas appeler.
+
+## Soleil / ombre (estimation)
+- **Position du soleil** : formules astronomiques (aucun service). **Orientation et inclinaison** : tracés OpenStreetMap et altitudes du réseau (EU-DEM 25 m, via OpenTopoData).
+- **Ombres du relief** : `dem.js`, grille de 150 m générée par `tools/build_dem.py` à partir d'EU-DEM v1.1 (Copernicus, 25 m ; précision verticale ≈ 7 m ; modèle de surface, la cime des forêts compte). Elle voit les grandes crêtes ; **pas les arbres, bâtiments ni reliefs de moins de 150 m**. Valeurs de contrôle : station ≈ 1 813 m (réel ≈ 1 860 m).
+- **Nuages** : prévision MET Norway quand elle couvre l'heure (sinon ignorés, et c'est écrit).
+- Mesuré au 1er février (hors nuages) : part des pistes officielles « au soleil » ≈ 32 % à 9 h, 87 % à 11 h, 100 % à 13 h ; sans le relief, l'estimation de 9 h monterait à 63 % : l'ombre des crêtes compte beaucoup le matin.
+- **Limite** : n'indique rien sur l'état de la neige (dure, transformée…).
+
+## Parcours prêts
+`parcours.js` est généré par `tools/build_parcours.js` : enchaînements exacts de tronçons du graphe, choisis parmi les variantes du planificateur (durée, difficulté, secteurs). **Proposés par SKIP, non relus par la station.** Aucun parcours Auris–Villard-Reculas valide n'a pu être construit avec le réseau actuel : il n'est donc pas proposé. Les durées de remontée sont officielles ; les durées de descente et de marche sont estimées. `pois.js` (restaurants, cafés, bars) vient du fond de carte OpenStreetMap : pas d'horaires ni d'avis.
+
+## Bulletin d'avalanche (à brancher)
+Service : API « Bulletin Avalanche » de Météo-France ([fiche data.gouv.fr](https://www.data.gouv.fr/dataservices/api-bulletin-avalanche)), base `https://public-api.meteofrance.fr/public/DPBRA/v1` : `/liste-massifs` (GeoJSON) et `/massif/BRA` (bulletin en vigueur d'un massif). **Une clé d'API (compte sur portail-api.meteofrance.fr, abonnement à « DonneesPubliquesBRA ») est nécessaire** : non fournie, donc non branché. Prévu : le relais interroge l'API avec la clé (variable d'environnement) et publie un petit JSON ; l'appli affiche « Risque n/5, émis le … », sans jamais présenter l'absence de bulletin comme une absence de danger.
